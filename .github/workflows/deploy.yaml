@@ -41,7 +41,7 @@ jobs:
         run: |
           docker build \
             --platform linux/arm64 \
-            -f apps/backend/Dockerfile \
-            -t $ECR_REGISTRY/storiny_api:latest apps/backend
+            -f Dockerfile \
+            -t $ECR_REGISTRY/storiny_api:latest .
           docker push $ECR_REGISTRY/storiny_api:latest
           echo "api-image=$ECR_REGISTRY/storiny_api:latest" >> $GITHUB_OUTPUT
