@@ -16,4 +16,4 @@ FROM (SELECT DISTINCT u.id,
       WHERE "u->story".category::TEXT = ANY ($1)
       ORDER BY
           u.follower_count DESC
-          LIMIT 25)
+          LIMIT 25) AS data
