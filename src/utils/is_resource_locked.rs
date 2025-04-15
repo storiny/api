@@ -1,6 +1,6 @@
 use crate::{
-    constants::resource_lock::ResourceLock,
     RedisPool,
+    constants::resource_lock::ResourceLock,
 };
 use anyhow::anyhow;
 use redis::AsyncCommands;
@@ -34,7 +34,6 @@ pub async fn is_resource_locked(
 mod tests {
     use super::*;
     use crate::test_utils::RedisTestContext;
-    use futures::future;
     use storiny_macros::test_context;
 
     mod serial {
@@ -73,18 +72,13 @@ mod tests {
         #[tokio::test]
         async fn can_return_true_for_a_locked_resource(ctx: &mut RedisTestContext) {
             let redis_pool = &ctx.redis_pool;
-            let mut incr_futures = vec![];
 
             // Exceed the attempts.
             for _ in 0..ResourceLock::Signup.get_max_attempts() + 1 {
-                incr_futures.push(incr_resource_lock_attempts(
-                    redis_pool,
-                    ResourceLock::Signup,
-                    "::1",
-                ));
+                incr_resource_lock_attempts(redis_pool, ResourceLock::Signup, "::1")
+                    .await
+                    .unwrap();
             }
-
-            future::join_all(incr_futures).await;
 
             let result = is_resource_locked(redis_pool, ResourceLock::Signup, "::1")
                 .await

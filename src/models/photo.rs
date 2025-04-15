@@ -5,6 +5,7 @@ use serde::{
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PhotoSource {
+    pub original: String,
     pub medium: String,
 }
 

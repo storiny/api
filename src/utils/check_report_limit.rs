@@ -1,9 +1,9 @@
 use crate::{
+    RedisPool,
     constants::{
         redis_namespaces::RedisNamespace,
         resource_limit::ResourceLimit,
     },
-    RedisPool,
 };
 use anyhow::anyhow;
 use redis::AsyncCommands;
@@ -39,7 +39,6 @@ mod tests {
         test_utils::RedisTestContext,
         utils::incr_report_limit::incr_report_limit,
     };
-    use futures::future;
     use storiny_macros::test_context;
 
     mod serial {
@@ -71,15 +70,12 @@ mod tests {
         #[tokio::test]
         async fn can_return_false_when_exceeding_a_report_limit(ctx: &mut RedisTestContext) {
             let redis_pool = &ctx.redis_pool;
-            let mut incr_futures = vec![];
 
             // Exceed the report limit. Do not use [crate::test_utils::exceed_report_limit] as
             // it depends on [check_report_limit].
             for _ in 0..ResourceLimit::CreateReport.get_limit() + 1 {
-                incr_futures.push(incr_report_limit(redis_pool, "::1"));
+                incr_report_limit(redis_pool, "::1").await.unwrap();
             }
-
-            future::join_all(incr_futures).await;
 
             let result = check_report_limit(redis_pool, "::1").await.unwrap();
 

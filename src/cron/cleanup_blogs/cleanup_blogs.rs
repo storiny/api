@@ -201,7 +201,6 @@ mod tests {
         },
         utils::delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
     };
-    use futures::future;
     use nanoid::nanoid;
     use sqlx::PgPool;
     use storiny_macros::test_context;
@@ -272,7 +271,6 @@ SELECT
         assert_eq!(result.rows_affected(), count as u64);
 
         // Upload empty objects to S3.
-        let mut put_futures = vec![];
         let mut object_keys = vec![];
 
         object_keys.append(&mut primary_font_keys);
@@ -280,18 +278,16 @@ SELECT
         object_keys.append(&mut code_font_keys);
 
         for key in object_keys {
-            put_futures.push(
-                s3_client
-                    .put_object()
-                    .bucket(S3_FONTS_BUCKET)
-                    .key(key.to_string())
-                    .send(),
-            );
+            s3_client
+                .put_object()
+                .bucket(S3_FONTS_BUCKET)
+                .key(key.to_string())
+                .send()
+                .await
+                .unwrap();
         }
 
-        future::join_all(put_futures).await;
-
-        let object_count = count_s3_objects(s3_client, S3_FONTS_BUCKET, None, None)
+        let object_count = count_s3_objects(s3_client, S3_FONTS_BUCKET, None)
             .await
             .unwrap();
 
@@ -325,7 +321,7 @@ SELECT
             assert!(result.is_empty());
 
             // Objects should not be present in the bucket.
-            let object_count = count_s3_objects(s3_client, S3_FONTS_BUCKET, None, None)
+            let object_count = count_s3_objects(s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -358,7 +354,7 @@ SELECT
             assert!(result.is_empty());
 
             // Objects should not be present in the bucket.
-            let object_count = count_s3_objects(s3_client, S3_FONTS_BUCKET, None, None)
+            let object_count = count_s3_objects(s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -408,7 +404,7 @@ WHERE id = (SELECT id FROM selected_blog)
             assert_eq!(result.len(), 1);
 
             // Objects should still be present in the bucket.
-            let object_count = count_s3_objects(s3_client, S3_FONTS_BUCKET, None, None)
+            let object_count = count_s3_objects(s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 

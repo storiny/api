@@ -27,3 +27,6 @@ udeps:
 
 update_geo:
     docker compose -f geo/docker-compose.yaml up
+
+migrate:
+    sqlx migrate run

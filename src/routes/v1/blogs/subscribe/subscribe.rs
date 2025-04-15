@@ -1,7 +1,8 @@
 use crate::{
+    AppState,
     amqp::consumers::templated_email::{
-        TemplatedEmailMessage,
         TEMPLATED_EMAIL_QUEUE_NAME,
+        TemplatedEmailMessage,
     },
     constants::{
         email_template::EmailTemplate,
@@ -23,14 +24,13 @@ use crate::{
         get_cdn_url::get_cdn_url,
         incr_subscription_limit::incr_subscription_limit,
     },
-    AppState,
 };
 use actix_web::{
+    HttpRequest,
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpRequest,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use chrono::{
@@ -38,8 +38,8 @@ use chrono::{
     Local,
 };
 use deadpool_lapin::lapin::{
-    options::BasicPublishOptions,
     BasicProperties,
+    options::BasicPublishOptions,
 };
 use serde::{
     Deserialize,
@@ -248,10 +248,10 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::test_utils::{
+        RedisTestContext,
         assert_form_error_response,
         assert_toast_error_response,
         init_app_for_test,
-        RedisTestContext,
     };
     use actix_web::test;
     use sqlx::PgPool;
@@ -380,7 +380,6 @@ VALUES ($1, $2)
                 resource_limit::ResourceLimit,
             },
         };
-        use futures_util::future;
         use redis::AsyncCommands;
 
         #[test_context(RedisTestContext)]
@@ -448,13 +447,12 @@ SELECT EXISTS (
         ) -> sqlx::Result<()> {
             let redis_pool = &ctx.redis_pool;
             let app = init_app_for_test(post, pool, false, false, None).await.0;
-            let mut incr_futures = vec![];
 
             for _ in 0..ResourceLimit::CreateReport.get_limit() + 1 {
-                incr_futures.push(incr_subscription_limit(redis_pool, "8.8.8.8"));
+                incr_subscription_limit(redis_pool, "8.8.8.8")
+                    .await
+                    .unwrap();
             }
-
-            future::join_all(incr_futures).await;
 
             let req = test::TestRequest::post()
                 .peer_addr(SocketAddr::from(SocketAddrV4::new(

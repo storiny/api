@@ -1,13 +1,13 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
     utils::decode_uri_encoded_story_categories::decode_uri_encoded_story_categories,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use actix_web_validator::QsQuery;
 use serde::{
@@ -57,7 +57,7 @@ async fn get(
 
     let categories =
         decode_uri_encoded_story_categories(&query.encoded_categories).map_err(|error| {
-            warn!("unable to decode maybe invalid story categories: {error:?}");
+            warn!("unable to decode story categories: {error:?}");
             AppError::from("Invalid encoded categories")
         })?;
 

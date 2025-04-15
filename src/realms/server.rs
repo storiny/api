@@ -11,9 +11,11 @@ use super::{
     },
 };
 use crate::{
+    RedisPool,
+    S3Client,
     config::{
-        get_app_config,
         Config,
+        get_app_config,
     },
     constants::{
         buckets::S3_DOCS_BUCKET,
@@ -26,8 +28,6 @@ use crate::{
         get_user_sessions::UserSession,
         inflate_bytes_gzip::inflate_bytes_gzip,
     },
-    RedisPool,
-    S3Client,
 };
 use aws_sdk_s3::operation::{
     get_object::GetObjectError,
@@ -57,8 +57,8 @@ use time::OffsetDateTime;
 use tokio::{
     io::AsyncReadExt,
     signal::unix::{
-        signal,
         SignalKind,
+        signal,
     },
     sync::{
         Mutex,
@@ -73,6 +73,9 @@ use tracing::{
 };
 use uuid::Uuid;
 use warp::{
+    Filter,
+    Rejection,
+    Reply,
     http::StatusCode,
     reply,
     ws::{
@@ -80,15 +83,12 @@ use warp::{
         WebSocket,
         Ws,
     },
-    Filter,
-    Rejection,
-    Reply,
 };
 use yrs::{
-    updates::decoder::Decode,
     Doc,
     Transact,
     Update,
+    updates::decoder::Decode,
 };
 
 /// The maximum number of overflowing messages that are buffered in the memory for the broadcast
@@ -686,6 +686,8 @@ pub async fn start_realms_server(
 #[cfg(test)]
 pub mod tests {
     use crate::{
+        RedisPool,
+        S3Client,
         config::get_app_config,
         constants::{
             buckets::S3_DOCS_BUCKET,
@@ -694,28 +696,26 @@ pub mod tests {
         },
         realms::{
             realm::{
-                RealmMap,
                 MAX_PEERS_PER_REALM,
+                RealmMap,
             },
             server::{
-                start_realms_server,
                 EnterRealmError,
+                start_realms_server,
             },
         },
         test_utils::{
+            RedisTestContext,
+            TestContext,
             count_s3_objects,
             get_redis_pool,
             get_s3_client,
-            RedisTestContext,
-            TestContext,
         },
         utils::{
             deflate_bytes_gzip::deflate_bytes_gzip,
             delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
             get_user_sessions::UserSession,
         },
-        RedisPool,
-        S3Client,
     };
     use cookie::{
         Cookie,
@@ -723,13 +723,13 @@ pub mod tests {
         Key,
     };
     use futures_util::{
+        SinkExt,
+        StreamExt,
         future,
         stream::{
             SplitSink,
             SplitStream,
         },
-        SinkExt,
-        StreamExt,
     };
     use lockable::{
         AsyncLimit,
@@ -744,13 +744,13 @@ pub mod tests {
     use storiny_macros::test_context;
     use tokio::net::TcpStream;
     use tokio_tungstenite::{
-        tungstenite::{
-            client::IntoClientRequest,
-            handshake::client::Request,
-            Message,
-        },
         MaybeTlsStream,
         WebSocketStream,
+        tungstenite::{
+            Message,
+            client::IntoClientRequest,
+            handshake::client::Request,
+        },
     };
     use uuid::Uuid;
     use yrs::{
@@ -1725,7 +1725,7 @@ WHERE
                 .await
                 .unwrap();
 
-            let documents = count_s3_objects(s3_client, S3_DOCS_BUCKET, None, None)
+            let documents = count_s3_objects(s3_client, S3_DOCS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -1763,7 +1763,7 @@ SELECT EXISTS (
             assert!(result.get::<bool, _>("exists"));
 
             // Should also make a copy of the original document in the object storage.
-            let documents = count_s3_objects(s3_client, S3_DOCS_BUCKET, None, None)
+            let documents = count_s3_objects(s3_client, S3_DOCS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -1830,7 +1830,7 @@ WHERE
                 .await
                 .unwrap();
 
-            let documents = count_s3_objects(s3_client, S3_DOCS_BUCKET, None, None)
+            let documents = count_s3_objects(s3_client, S3_DOCS_BUCKET, None)
                 .await
                 .unwrap();
 

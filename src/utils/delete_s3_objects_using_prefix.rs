@@ -67,7 +67,6 @@ mod tests {
         },
     };
     use aws_sdk_s3::operation::get_object::GetObjectError;
-    use futures::future;
     use storiny_macros::test_context;
 
     struct LocalTestContext {
@@ -139,20 +138,17 @@ mod tests {
         #[tokio::test]
         async fn can_delete_more_than_1000_objects_with_prefix(ctx: &mut LocalTestContext) {
             let s3_client = &ctx.s3_client;
-            let mut put_futures = vec![];
 
             // Insert 1200 objects
             for i in 0..1_200 {
-                put_futures.push(
-                    s3_client
-                        .put_object()
-                        .bucket(S3_BASE_BUCKET)
-                        .key(format!("test-integers/{}", i))
-                        .send(),
-                );
+                s3_client
+                    .put_object()
+                    .bucket(S3_BASE_BUCKET)
+                    .key(format!("test-integers/{}", i))
+                    .send()
+                    .await
+                    .unwrap();
             }
-
-            future::join_all(put_futures).await;
 
             let result = delete_s3_objects_using_prefix(
                 s3_client,

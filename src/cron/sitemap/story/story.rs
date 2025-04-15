@@ -1,11 +1,11 @@
 use crate::{
+    S3Client,
     constants::buckets::S3_SITEMAPS_BUCKET,
     cron::sitemap::GenerateSitemapResponse,
     utils::{
         deflate_bytes_gzip::deflate_bytes_gzip,
         get_sitemap_change_freq::get_sitemap_change_freq,
     },
-    S3Client,
 };
 use apalis::prelude::Error;
 use async_recursion::async_recursion;
@@ -193,9 +193,9 @@ mod tests {
     use crate::{
         config::get_app_config,
         test_utils::{
+            TestContext,
             count_s3_objects,
             get_s3_client,
-            TestContext,
         },
         utils::delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
     };
@@ -250,14 +250,10 @@ mod tests {
             );
 
             // Sitemaps should be present in the bucket.
-            let sitemap_count = count_s3_objects(
-                s3_client,
-                S3_SITEMAPS_BUCKET,
-                Some("stories-".to_string()),
-                None,
-            )
-            .await
-            .unwrap();
+            let sitemap_count =
+                count_s3_objects(s3_client, S3_SITEMAPS_BUCKET, Some("stories-".to_string()))
+                    .await
+                    .unwrap();
 
             assert_eq!(sitemap_count, 1);
 
@@ -285,14 +281,10 @@ mod tests {
             );
 
             // Sitemaps should be present in the bucket.
-            let sitemap_count = count_s3_objects(
-                s3_client,
-                S3_SITEMAPS_BUCKET,
-                Some("stories-".to_string()),
-                None,
-            )
-            .await
-            .unwrap();
+            let sitemap_count =
+                count_s3_objects(s3_client, S3_SITEMAPS_BUCKET, Some("stories-".to_string()))
+                    .await
+                    .unwrap();
 
             assert_eq!(sitemap_count, 3);
 

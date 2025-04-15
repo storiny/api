@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::buckets::S3_UPLOADS_BUCKET,
     error::{
         AppError,
@@ -6,12 +7,11 @@ use crate::{
     },
     middlewares::identity::identity::Identity,
     utils::delete_s3_objects::delete_s3_objects,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     delete,
     web,
-    HttpResponse,
 };
 use serde::Deserialize;
 use sqlx::Row;
@@ -100,15 +100,15 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::{
+        S3Client,
         test_utils::{
+            TestContext,
             assert_toast_error_response,
             count_s3_objects,
             get_s3_client,
             init_app_for_test,
-            TestContext,
         },
         utils::delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
-        S3Client,
     };
     use actix_web::test;
     use sqlx::PgPool;
@@ -169,7 +169,7 @@ mod tests {
                 .unwrap();
 
             // Asset should be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_UPLOADS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_UPLOADS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -220,7 +220,7 @@ SELECT EXISTS (
             assert!(!result.get::<bool, _>("exists"));
 
             // Asset should not be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_UPLOADS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_UPLOADS_BUCKET, None)
                 .await
                 .unwrap();
 

@@ -1,8 +1,8 @@
 use crate::{
+    S3Client,
     constants::buckets::S3_SITEMAPS_BUCKET,
     cron::sitemap::GenerateSitemapResponse,
     utils::deflate_bytes_gzip::deflate_bytes_gzip,
-    S3Client,
 };
 use apalis::prelude::Error;
 use sitemap_rs::{
@@ -103,9 +103,9 @@ mod tests {
     use crate::{
         config::get_app_config,
         test_utils::{
+            TestContext,
             count_s3_objects,
             get_s3_client,
-            TestContext,
         },
     };
     use storiny_macros::test_context;
@@ -151,7 +151,6 @@ mod tests {
                 s3_client,
                 S3_SITEMAPS_BUCKET,
                 Some("presets.xml".to_string()),
-                None,
             )
             .await
             .unwrap();

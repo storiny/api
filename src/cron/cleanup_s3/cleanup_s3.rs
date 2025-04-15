@@ -334,22 +334,17 @@ SELECT UNNEST($1::UUID[]), $2, $3, $4
 
         assert_eq!(result.rows_affected(), object_keys.len() as u64);
 
-        // Upload empty objects to S3.
-        let mut put_futures = vec![];
-
         for key in object_keys {
-            put_futures.push(
-                s3_client
-                    .put_object()
-                    .bucket(S3_UPLOADS_BUCKET)
-                    .key(key.to_string())
-                    .send(),
-            );
+            s3_client
+                .put_object()
+                .bucket(S3_UPLOADS_BUCKET)
+                .key(key.to_string())
+                .send()
+                .await
+                .unwrap();
         }
 
-        future::join_all(put_futures).await;
-
-        let object_count = count_s3_objects(s3_client, S3_UPLOADS_BUCKET, None, None)
+        let object_count = count_s3_objects(s3_client, S3_UPLOADS_BUCKET, None)
             .await
             .unwrap();
 
@@ -378,21 +373,17 @@ SELECT UNNEST($1::UUID[])
         assert_eq!(result.rows_affected(), object_keys.len() as u64);
 
         // Upload empty objects to S3.
-        let mut put_futures = vec![];
-
         for key in object_keys {
-            put_futures.push(
-                s3_client
-                    .put_object()
-                    .bucket(S3_DOCS_BUCKET)
-                    .key(key.to_string())
-                    .send(),
-            );
+            s3_client
+                .put_object()
+                .bucket(S3_DOCS_BUCKET)
+                .key(key.to_string())
+                .send()
+                .await
+                .unwrap();
         }
 
-        future::join_all(put_futures).await;
-
-        let object_count = count_s3_objects(s3_client, S3_DOCS_BUCKET, None, None)
+        let object_count = count_s3_objects(s3_client, S3_DOCS_BUCKET, None)
             .await
             .unwrap();
 
@@ -428,7 +419,7 @@ SELECT UNNEST($1::UUID[])
             assert!(result.is_empty());
 
             // Objects should not be present in the bucket.
-            let object_count = count_s3_objects(s3_client, S3_UPLOADS_BUCKET, None, None)
+            let object_count = count_s3_objects(s3_client, S3_UPLOADS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -461,7 +452,7 @@ SELECT UNNEST($1::UUID[])
             assert!(result.is_empty());
 
             // Objects should not be present in the bucket.
-            let object_count = count_s3_objects(s3_client, S3_UPLOADS_BUCKET, None, None)
+            let object_count = count_s3_objects(s3_client, S3_UPLOADS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -511,7 +502,7 @@ WHERE id = (SELECT id FROM selected_asset)
             assert_eq!(result.len(), 1);
 
             // Object should still be present in the bucket.
-            let object_count = count_s3_objects(s3_client, S3_UPLOADS_BUCKET, None, None)
+            let object_count = count_s3_objects(s3_client, S3_UPLOADS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -546,7 +537,7 @@ WHERE id = (SELECT id FROM selected_asset)
             assert!(result.is_empty());
 
             // Objects should not be present in the bucket.
-            let object_count = count_s3_objects(s3_client, S3_DOCS_BUCKET, None, None)
+            let object_count = count_s3_objects(s3_client, S3_DOCS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -579,7 +570,7 @@ WHERE id = (SELECT id FROM selected_asset)
             assert!(result.is_empty());
 
             // Objects should not be present in the bucket.
-            let object_count = count_s3_objects(s3_client, S3_DOCS_BUCKET, None, None)
+            let object_count = count_s3_objects(s3_client, S3_DOCS_BUCKET, None)
                 .await
                 .unwrap();
 

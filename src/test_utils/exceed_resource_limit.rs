@@ -1,9 +1,8 @@
 use crate::{
+    RedisPool,
     constants::resource_limit::ResourceLimit,
     utils::incr_resource_limit::incr_resource_limit,
-    RedisPool,
 };
-use futures::future;
 
 /// Exceeds the resource limit for the provided resource type and user ID (used only for tests).
 ///
@@ -15,13 +14,11 @@ pub async fn exceed_resource_limit(
     resource_limit: ResourceLimit,
     user_id: i64,
 ) {
-    let mut incr_futures = vec![];
-
     for _ in 0..resource_limit.get_limit() + 1 {
-        incr_futures.push(incr_resource_limit(redis_pool, resource_limit, user_id));
+        incr_resource_limit(redis_pool, resource_limit, user_id)
+            .await
+            .unwrap();
     }
-
-    future::join_all(incr_futures).await;
 }
 
 #[cfg(test)]

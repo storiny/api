@@ -3,11 +3,11 @@ use crate::{
     cron::{
         init::SharedCronJobState,
         sitemap::{
+            GenerateSitemapResponse,
             presets::generate_preset_sitemap,
             story::generate_story_sitemap,
             tag::generate_tag_sitemap,
             user::generate_user_sitemap,
-            GenerateSitemapResponse,
         },
     },
     utils::{
@@ -220,13 +220,13 @@ pub async fn refresh_sitemap(
 mod tests {
     use super::*;
     use crate::{
+        S3Client,
         test_utils::{
+            TestContext,
             count_s3_objects,
             get_cron_job_state_for_test,
             get_s3_client,
-            TestContext,
         },
-        S3Client,
     };
     use sqlx::PgPool;
     use storiny_macros::test_context;
@@ -266,7 +266,7 @@ mod tests {
             assert_eq!(result.unwrap().file_count, expected_sitemap_file_count);
 
             // Sitemaps should be present in the bucket.
-            let sitemap_count = count_s3_objects(s3_client, S3_SITEMAPS_BUCKET, None, None)
+            let sitemap_count = count_s3_objects(s3_client, S3_SITEMAPS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -286,7 +286,7 @@ mod tests {
             assert_eq!(result.unwrap().file_count, expected_sitemap_file_count);
 
             // Sitemaps should be present in the bucket.
-            let sitemap_count = count_s3_objects(s3_client, S3_SITEMAPS_BUCKET, None, None)
+            let sitemap_count = count_s3_objects(s3_client, S3_SITEMAPS_BUCKET, None)
                 .await
                 .unwrap();
 

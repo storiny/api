@@ -1,4 +1,6 @@
 use crate::{
+    AppState,
+    S3Client,
     constants::{
         buckets::S3_UPLOADS_BUCKET,
         pexels::PEXELS_API_URL,
@@ -14,24 +16,22 @@ use crate::{
         check_resource_limit::check_resource_limit,
         incr_resource_limit::incr_resource_limit,
     },
-    AppState,
-    S3Client,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use colors_transform::Rgb;
 use dominant_color::get_colors;
 use image::{
-    imageops::FilterType,
     EncodableLayout,
     GenericImageView,
     ImageError,
     ImageFormat,
+    imageops::FilterType,
 };
 use mime::IMAGE_JPEG;
 use serde::{
@@ -74,14 +74,12 @@ struct Response {
 
 /// Returns the URL of the photo image, with custom width and height query parameters.
 ///
-/// # Caution
-///
-/// This URL format is not documented by Pexels, but their public API follows this format.
-///
-/// * `photo_id` - The ID of the photo resource.
-fn get_photo_image_url(photo_id: &str) -> String {
+/// * `original_url` - The original URL of the photo resource without query parameters.
+fn get_photo_image_url(original_url: &str) -> String {
     format!(
-        "https://images.pexels.com/photos/{photo_id}/pexels-photo-{photo_id}.jpeg?auto=compress&cs=tinysrgb&h=2048&w=2048"
+        "{}{}auto=compress&cs=tinysrgb&h=2048&w=2048",
+        original_url,
+        if original_url.contains("?") { "&" } else { "?" }
     )
 }
 
@@ -176,7 +174,7 @@ async fn post(
     )?;
 
     let image_response = reqwest_client
-        .get(get_photo_image_url(&photo_id.to_string()))
+        .get(get_photo_image_url(&photo.src.original))
         .timeout(Duration::from_secs(30)) // 30 seconds download timeout
         .send()
         .await
@@ -408,7 +406,10 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::{
+        RedisPool,
         test_utils::{
+            RedisTestContext,
+            TestContext,
             assert_toast_error_response,
             exceed_resource_limit,
             get_redis_pool,
@@ -416,11 +417,8 @@ mod tests {
             get_s3_client,
             init_app_for_test,
             res_to_string,
-            RedisTestContext,
-            TestContext,
         },
         utils::delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
-        RedisPool,
     };
     use actix_http::StatusCode;
     use actix_web::test;

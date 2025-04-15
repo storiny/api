@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::buckets::S3_FONTS_BUCKET,
     error::{
         AppError,
@@ -6,12 +7,11 @@ use crate::{
     },
     middlewares::identity::identity::Identity,
     utils::delete_s3_objects::delete_s3_objects,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     delete,
     web,
-    HttpResponse,
 };
 use serde::Deserialize;
 use sqlx::Row;
@@ -138,16 +138,16 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::{
+        S3Client,
         test_utils::{
+            TestContext,
             assert_response_body_text,
             assert_toast_error_response,
             count_s3_objects,
             get_s3_client,
             init_app_for_test,
-            TestContext,
         },
         utils::delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
-        S3Client,
     };
     use actix_web::test;
     use sqlx::PgPool;
@@ -365,7 +365,7 @@ RETURNING id
                 .unwrap();
 
             // Font should be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -413,7 +413,7 @@ WHERE id = $1
             assert!(result.get::<Option<Uuid>, _>("font_primary").is_none());
 
             // Font should not be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -442,7 +442,7 @@ WHERE id = $1
                 .unwrap();
 
             // Font should be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -539,7 +539,7 @@ WHERE id = $1
             assert!(result.get::<Option<Uuid>, _>("font_primary").is_none());
 
             // Font should not be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 
