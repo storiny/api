@@ -7,10 +7,10 @@
 macro_rules! async_transaction {
     ($conn:expr, $keys:expr, $body:expr) => {
         loop {
-            redis::cmd("WATCH").arg($keys).query_async($conn).await?;
+            let _: () = redis::cmd("WATCH").arg($keys).query_async($conn).await?;
 
             if let Some(response) = $body {
-                redis::cmd("UNWATCH").query_async($conn).await?;
+                let _: () = redis::cmd("UNWATCH").query_async($conn).await?;
                 break response;
             }
         }

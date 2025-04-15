@@ -1,9 +1,8 @@
 use crate::{
+    RedisPool,
     constants::resource_lock::ResourceLock,
     utils::incr_resource_lock_attempts::incr_resource_lock_attempts,
-    RedisPool,
 };
-use futures::future;
 
 /// Exceeds the attempts for a locked resource.
 ///
@@ -15,17 +14,11 @@ pub async fn exceed_resource_lock_attempts(
     resource_lock: ResourceLock,
     identifier: &str,
 ) {
-    let mut incr_futures = vec![];
-
     for _ in 0..resource_lock.get_max_attempts() {
-        incr_futures.push(incr_resource_lock_attempts(
-            redis_pool,
-            resource_lock,
-            identifier,
-        ));
+        incr_resource_lock_attempts(redis_pool, resource_lock, identifier)
+            .await
+            .unwrap();
     }
-
-    future::join_all(incr_futures).await;
 }
 
 #[cfg(test)]

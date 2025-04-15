@@ -11,8 +11,8 @@ use actix_web::{
 };
 use async_trait::async_trait;
 use redis::{
-    aio::ConnectionManager,
     AsyncCommands,
+    aio::ConnectionManager,
 };
 use std::{
     borrow::Cow,
@@ -167,7 +167,8 @@ impl SimpleBackend for RedisBackend {
     async fn remove_key(&self, key: &str) -> Result<(), Self::Error> {
         let key = self.make_key(key);
         let mut con = self.connection.clone();
-        con.del(key.as_ref()).await?;
+        let _: () = con.del(key.as_ref()).await?;
+
         Ok(())
     }
 }

@@ -904,7 +904,7 @@ WHERE id = $1
             assert!(res.status().is_success());
 
             // Font should be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -924,7 +924,7 @@ WHERE id = $1
             assert!(res.status().is_success());
 
             // Should delete the old font.
-            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 

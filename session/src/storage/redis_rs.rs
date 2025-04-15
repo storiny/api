@@ -4,12 +4,12 @@ use anyhow::{
     Error,
 };
 use redis::{
-    aio::ConnectionManager,
     AsyncCommands,
     Cmd,
     FromRedisValue,
     RedisResult,
     Value,
+    aio::ConnectionManager,
 };
 use std::{
     convert::TryInto,
@@ -19,6 +19,7 @@ use std::{
 
 use super::SessionKey;
 use crate::storage::{
+    SessionStore,
     interface::{
         LoadError,
         SaveError,
@@ -26,7 +27,6 @@ use crate::storage::{
         UpdateError,
     },
     utils::generate_session_key,
-    SessionStore,
 };
 
 /// Use Redis as session storage backend.
@@ -146,17 +146,18 @@ impl SessionStore for RedisSessionStore {
         let session_key = generate_session_key(user_id.map(|value| value.to_string()));
         let cache_key = (self.configuration.cache_keygen)(session_key.as_ref());
 
-        self.execute_command(
-            redis::cmd("SET")
-                .arg(&cache_key)
-                .arg(&body)
-                .arg("NX") // NX: only set the key if it does not already exist
-                .arg("EX") // EX: set expiry
-                .arg(&format!("{}", ttl.whole_seconds())),
-        )
-        .await
-        .map_err(Into::into)
-        .map_err(SaveError::Other)?;
+        let _: () = self
+            .execute_command(
+                redis::cmd("SET")
+                    .arg(&cache_key)
+                    .arg(&body)
+                    .arg("NX") // NX: only set the key if it does not already exist
+                    .arg("EX") // EX: set expiry
+                    .arg(&format!("{}", ttl.whole_seconds())),
+            )
+            .await
+            .map_err(Into::into)
+            .map_err(SaveError::Other)?;
 
         Ok(session_key)
     }
@@ -209,7 +210,8 @@ impl SessionStore for RedisSessionStore {
     async fn update_ttl(&self, session_key: &SessionKey, ttl: &Duration) -> Result<(), Error> {
         let cache_key = (self.configuration.cache_keygen)(session_key.as_ref());
 
-        self.client
+        let _: () = self
+            .client
             .clone()
             .expire(
                 &cache_key,
@@ -218,12 +220,14 @@ impl SessionStore for RedisSessionStore {
                 )?,
             )
             .await?;
+
         Ok(())
     }
 
     async fn delete(&self, session_key: &SessionKey) -> Result<(), anyhow::Error> {
         let cache_key = (self.configuration.cache_keygen)(session_key.as_ref());
-        self.execute_command(redis::cmd("DEL").arg(&[&cache_key]))
+        let _: () = self
+            .execute_command(redis::cmd("DEL").arg(&[&cache_key]))
             .await
             .map_err(Into::into)
             .map_err(UpdateError::Other)?;

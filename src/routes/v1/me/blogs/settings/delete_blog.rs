@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::buckets::S3_FONTS_BUCKET,
     error::{
         AppError,
@@ -7,13 +8,12 @@ use crate::{
     },
     middlewares::identity::identity::Identity,
     utils::delete_s3_objects::delete_s3_objects,
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use argon2::{
@@ -170,24 +170,24 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::{
+        S3Client,
         test_utils::{
+            TestContext,
             assert_form_error_response,
             assert_toast_error_response,
             count_s3_objects,
             get_s3_client,
             init_app_for_test,
-            TestContext,
         },
         utils::delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
-        S3Client,
     };
     use actix_web::test;
     use argon2::{
-        password_hash::{
-            rand_core::OsRng,
-            SaltString,
-        },
         PasswordHasher,
+        password_hash::{
+            SaltString,
+            rand_core::OsRng,
+        },
     };
     use sqlx::{
         PgPool,
@@ -367,7 +367,7 @@ RETURNING id
                 .unwrap();
 
             // Fonts should be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 
@@ -423,7 +423,7 @@ SELECT EXISTS (
             assert!(!result.get::<bool, _>("exists"));
 
             // Fonts should not be present in the bucket.
-            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None, None)
+            let result = count_s3_objects(&ctx.s3_client, S3_FONTS_BUCKET, None)
                 .await
                 .unwrap();
 

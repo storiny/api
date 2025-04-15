@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::report_type::REPORT_TYPE_VEC,
     error::{
         AppError,
@@ -10,14 +11,13 @@ use crate::{
         check_report_limit::check_report_limit,
         incr_report_limit::incr_report_limit,
     },
-    AppState,
 };
 use actix_web::{
+    HttpRequest,
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpRequest,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{
@@ -139,13 +139,12 @@ mod tests {
             resource_limit::ResourceLimit,
         },
         test_utils::{
+            RedisTestContext,
             assert_form_error_response,
             init_app_for_test,
-            RedisTestContext,
         },
     };
     use actix_web::test;
-    use futures_util::future;
     use redis::AsyncCommands;
     use sqlx::{
         PgPool,
@@ -283,13 +282,10 @@ WHERE entity_id = $1
 
         let user_id = user_id.unwrap();
         let user_id_str = user_id.to_string();
-        let mut incr_futures = vec![];
 
         for _ in 0..ResourceLimit::CreateReport.get_limit() + 1 {
-            incr_futures.push(incr_report_limit(redis_pool, &user_id_str));
+            incr_report_limit(redis_pool, &user_id_str).await.unwrap();
         }
-
-        future::join_all(incr_futures).await;
 
         let req = test::TestRequest::post()
             .cookie(cookie.unwrap())
