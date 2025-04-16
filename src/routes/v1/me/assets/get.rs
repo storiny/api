@@ -1,12 +1,12 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use actix_web_validator::QsQuery;
 use serde::{
@@ -82,9 +82,9 @@ LIMIT $2 OFFSET $3
 "#,
     )
     .bind(user_id)
-    // This route returns 15 items per call.
-    .bind(15_i16)
-    .bind((page * 15) as i16)
+    // This route returns 30 items per call.
+    .bind(30_i16)
+    .bind((page * 30) as i16)
     .fetch_all(&data.db_pool)
     .await?;
 
