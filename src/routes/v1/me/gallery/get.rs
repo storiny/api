@@ -1,14 +1,14 @@
 use crate::{
+    AppState,
     constants::pexels::PEXELS_API_URL,
     error::AppError,
     middlewares::identity::identity::Identity,
     models::photo::PexelsResponse,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use actix_web_validator::QsQuery;
 use serde::{
@@ -60,7 +60,7 @@ async fn get(
                 "v1/curated"
             }
         ))
-        .query(&[("per_page", 15), ("page", page)])
+        .query(&[("per_page", 30), ("page", page)])
         .query(&[("query", search_query)])
         .header(reqwest::header::AUTHORIZATION, pexels_api_key)
         .send()
