@@ -1,16 +1,16 @@
 use crate::{
+    AppState,
     error::{
         AppError,
         FormErrorResponse,
     },
     grpc::defs::user_def::v1::StatusDuration,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{

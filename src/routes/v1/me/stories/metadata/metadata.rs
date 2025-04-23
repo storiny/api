@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::{
         sql_states::SqlState,
         story_category::STORY_CATEGORY_VEC,
@@ -10,13 +11,12 @@ use crate::{
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     patch,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{

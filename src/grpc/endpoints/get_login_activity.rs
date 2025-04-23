@@ -13,8 +13,8 @@ use crate::{
     utils::{
         extract_session_key_from_cookie::extract_session_key_from_cookie,
         get_user_sessions::{
-            get_user_sessions,
             UserSession,
+            get_user_sessions,
         },
         to_iso8601::to_iso8601,
     },
@@ -142,8 +142,8 @@ mod tests {
         },
         grpc::defs::login_activity_def::v1::GetLoginActivityRequest,
         test_utils::{
-            test_grpc_service,
             RedisTestContext,
+            test_grpc_service,
         },
         utils::{
             get_client_device::ClientDevice,

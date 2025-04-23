@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::resource_lock::ResourceLock,
     error::{
         AppError,
@@ -9,13 +10,12 @@ use crate::{
         is_resource_locked::is_resource_locked,
         reset_resource_lock::reset_resource_lock,
     },
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use argon2::{
@@ -132,20 +132,20 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::test_utils::{
+        RedisTestContext,
         assert_toast_error_response,
         exceed_resource_lock_attempts,
         get_resource_lock_attempts,
         init_app_for_test,
         res_to_string,
-        RedisTestContext,
     };
     use actix_web::test;
     use argon2::{
-        password_hash::{
-            rand_core::OsRng,
-            SaltString,
-        },
         PasswordHasher,
+        password_hash::{
+            SaltString,
+            rand_core::OsRng,
+        },
     };
     use sqlx::PgPool;
     use storiny_macros::test_context;

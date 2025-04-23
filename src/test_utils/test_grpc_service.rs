@@ -1,4 +1,5 @@
 use crate::{
+    RedisPool,
     config::get_app_config,
     grpc::{
         defs::grpc_service::v1::{
@@ -8,7 +9,6 @@ use crate::{
         service::GrpcService,
     },
     test_utils::get_redis_pool,
-    RedisPool,
 };
 use sqlx::{
     PgPool,

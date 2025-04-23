@@ -1,10 +1,10 @@
 use crate::{
+    RedisPool,
     config::Config,
     grpc::{
         defs::grpc_service::v1::api_service_server::ApiServiceServer,
         service::GrpcService,
     },
-    RedisPool,
 };
 use sqlx::{
     Pool,
@@ -15,14 +15,14 @@ use std::{
     time::Duration,
 };
 use tonic::{
+    Request,
+    Status,
     codec::CompressionEncoding,
     codegen::InterceptedService,
     metadata::{
         Ascii,
         MetadataValue,
     },
-    Request,
-    Status,
 };
 
 /// Authentication middleware.

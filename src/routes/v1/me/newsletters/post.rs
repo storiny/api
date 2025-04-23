@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::resource_limit::ResourceLimit,
     error::AppError,
     middlewares::identity::identity::Identity,
@@ -6,13 +7,12 @@ use crate::{
         check_resource_limit::check_resource_limit,
         incr_resource_limit::incr_resource_limit,
     },
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -104,11 +104,11 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::test_utils::{
+        RedisTestContext,
         assert_response_body_text,
         exceed_resource_limit,
         get_resource_limit,
         init_app_for_test,
-        RedisTestContext,
     };
     use actix_http::StatusCode;
     use actix_web::test;

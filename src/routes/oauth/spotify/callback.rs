@@ -1,4 +1,6 @@
 use crate::{
+    AppState,
+    ConnectionTemplate,
     constants::connection_provider::ConnectionProvider,
     error::AppError,
     middlewares::identity::identity::Identity,
@@ -7,14 +9,12 @@ use crate::{
         AuthRequest,
         ConnectionError,
     },
-    AppState,
-    ConnectionTemplate,
 };
 use actix_web::{
+    HttpResponse,
     get,
     http::header::ContentType,
     web,
-    HttpResponse,
 };
 use actix_web_validator::QsQuery;
 use http::header;
@@ -185,8 +185,8 @@ mod tests {
         init_app_for_test,
     };
     use actix_web::{
-        test,
         Responder,
+        test,
     };
     use sqlx::{
         PgPool,

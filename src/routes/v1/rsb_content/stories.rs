@@ -4,11 +4,11 @@ use serde::{
 };
 
 use sqlx::{
-    types::Json,
     FromRow,
     Pool,
     Postgres,
     QueryBuilder,
+    types::Json,
 };
 use uuid::Uuid;
 

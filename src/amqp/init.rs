@@ -1,4 +1,8 @@
 use crate::{
+    LapinPool,
+    RedisPool,
+    S3Client,
+    SesClient,
     amqp::consumers::{
         newsletter::newsletter_consumer,
         notify_story_add::notify_story_add_consumer,
@@ -7,10 +11,6 @@ use crate::{
     config,
     config::get_app_config,
     models::email_templates::blog_newsletter::BlogNewsletterEmailTemplateData,
-    LapinPool,
-    RedisPool,
-    S3Client,
-    SesClient,
 };
 use sqlx::{
     Pool,

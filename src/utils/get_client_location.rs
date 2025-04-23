@@ -1,6 +1,6 @@
 use maxminddb::{
-    geoip2,
     Reader,
+    geoip2,
 };
 use serde::{
     Deserialize,

@@ -1,8 +1,8 @@
 use crate::storage::SessionKey;
 use rand::{
+    Rng as _,
     distributions::Alphanumeric,
     rngs::OsRng,
-    Rng as _,
 };
 use std::convert::TryInto;
 

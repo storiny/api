@@ -1,9 +1,9 @@
 use crate::{
-    test_utils::{
-        get_redis_pool,
-        TestContext,
-    },
     RedisPool,
+    test_utils::{
+        TestContext,
+        get_redis_pool,
+    },
 };
 
 /// The test context with Redis connection pool. Flushes the entire Redis database on teardown.

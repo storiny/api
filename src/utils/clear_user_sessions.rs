@@ -1,6 +1,6 @@
 use crate::{
-    utils::get_user_sessions::get_user_sessions,
     RedisPool,
+    utils::get_user_sessions::get_user_sessions,
 };
 use anyhow::anyhow;
 
@@ -57,11 +57,7 @@ mod tests {
             for _ in 0..5 {
                 redis_conn
                     .set::<_, _, ()>(
-                        &format!(
-                            "{}:{user_id}:{}",
-                            RedisNamespace::Session,
-                            Uuid::new_v4()
-                        ),
+                        &format!("{}:{user_id}:{}", RedisNamespace::Session, Uuid::new_v4()),
                         &rmp_serde::to_vec_named(&UserSession {
                             user_id,
                             ..Default::default()

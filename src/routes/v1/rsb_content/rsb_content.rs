@@ -1,26 +1,26 @@
 use super::{
     stories::{
-        get_rsb_content_stories,
         Story,
+        get_rsb_content_stories,
     },
     tags::{
-        get_rsb_content_tags,
         Tag,
+        get_rsb_content_tags,
     },
     users::{
-        get_rsb_content_users,
         User,
+        get_rsb_content_users,
     },
 };
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use serde::{
     Deserialize,

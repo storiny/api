@@ -1,12 +1,12 @@
 use crate::{
-    error::AppError,
     IndexTemplate,
+    error::AppError,
 };
 use actix_web::{
+    HttpResponse,
     get,
     http::header::ContentType,
     web,
-    HttpResponse,
 };
 use sailfish::TemplateOnce;
 use tracing_actix_web::RequestId;

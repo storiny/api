@@ -1,8 +1,8 @@
 use serde::{
-    de,
     Deserialize,
     Deserializer,
     Serializer,
+    de,
 };
 use std::fmt;
 
@@ -38,10 +38,10 @@ where
 
 pub mod option {
     use serde::{
-        de,
         Deserialize,
         Deserializer,
         Serializer,
+        de,
     };
     use std::fmt;
 

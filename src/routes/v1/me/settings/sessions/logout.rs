@@ -1,13 +1,13 @@
 use crate::{
+    AppState,
     constants::redis_namespaces::RedisNamespace,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use redis::AsyncCommands;
@@ -38,11 +38,7 @@ async fn post(
     let user_id = user.id()?;
     let mut redis_conn = data.redis.get().await?;
 
-    let cache_key = format!(
-        "{}:{user_id}:{}",
-        RedisNamespace::Session,
-        &payload.id
-    );
+    let cache_key = format!("{}:{user_id}:{}", RedisNamespace::Session, &payload.id);
 
     redis_conn.del::<_, ()>(cache_key).await.map_err(|error| {
         AppError::InternalError(format!("unable to delete the session: {error:?}"))
@@ -60,12 +56,12 @@ mod tests {
     use super::*;
     use crate::{
         test_utils::{
-            init_app_for_test,
             RedisTestContext,
+            init_app_for_test,
         },
         utils::get_user_sessions::{
-            get_user_sessions,
             UserSession,
+            get_user_sessions,
         },
     };
     use actix_web::test;

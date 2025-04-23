@@ -1,6 +1,6 @@
 use crate::{
-    config::get_app_config,
     RedisPool,
+    config::get_app_config,
 };
 
 /// Initializes and returns a Redis connection pool for tests

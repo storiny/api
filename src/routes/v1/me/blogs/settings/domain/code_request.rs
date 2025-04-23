@@ -1,4 +1,6 @@
 use crate::{
+    AppState,
+    HmacSha1,
     constants::{
         blog_domain_regex::BLOG_DOMAIN_REGEX,
         domain_verification_key::DOMAIN_VERIFICATION_TXT_RECORD_KEY,
@@ -9,13 +11,11 @@ use crate::{
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
-    AppState,
-    HmacSha1,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use hex::encode as encode_hex;

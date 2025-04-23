@@ -1,12 +1,12 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     delete,
     web,
-    HttpResponse,
 };
 
 #[delete("/v1/me/status")]

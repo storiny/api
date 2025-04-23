@@ -1,13 +1,13 @@
 use crate::{
+    AppState,
     error::AppError,
     grpc::defs::privacy_settings_def::v1::IncomingBlogRequest,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     patch,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use lazy_static::lazy_static;

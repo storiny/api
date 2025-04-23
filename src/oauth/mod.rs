@@ -1,18 +1,18 @@
 use crate::{
-    config::Config,
     OAuthClientMap,
+    config::Config,
 };
 use oauth2::{
+    Client,
+    EndpointNotSet,
+    EndpointSet,
+    StandardRevocableToken,
     basic::{
         BasicErrorResponse,
         BasicRevocationErrorResponse,
         BasicTokenIntrospectionResponse,
         BasicTokenResponse,
     },
-    Client,
-    EndpointNotSet,
-    EndpointSet,
-    StandardRevocableToken,
 };
 
 pub mod icons;

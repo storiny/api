@@ -1,13 +1,13 @@
 use crate::{
+    AppState,
     constants::account_activity_type::AccountActivityType,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use actix_web_validator::QsQuery;
 use serde::{
@@ -17,8 +17,8 @@ use serde::{
 
 use sqlx::FromRow;
 use time::{
-    format_description,
     OffsetDateTime,
+    format_description,
 };
 use validator::Validate;
 

@@ -1,17 +1,17 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     get,
     http::header::{
         CacheControl,
         CacheDirective,
     },
     web,
-    HttpResponse,
 };
 use serde::{
     Deserialize,
@@ -408,8 +408,8 @@ mod tests {
     };
     use actix_web::test;
     use chrono::{
-        prelude::*,
         Duration,
+        prelude::*,
     };
     use sqlx::{
         PgPool,

@@ -1,4 +1,6 @@
 use crate::{
+    AddAccountTemplate,
+    AppState,
     constants::account_activity_type::AccountActivityType,
     error::{
         AddAccountError,
@@ -6,18 +8,16 @@ use crate::{
     },
     middlewares::identity::identity::Identity,
     oauth::{
-        icons::google::GOOGLE_LOGO,
         GoogleOAuthResponse,
+        icons::google::GOOGLE_LOGO,
     },
     routes::oauth::AuthRequest,
-    AddAccountTemplate,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     http::header::ContentType,
     web,
-    HttpResponse,
 };
 use actix_web_validator::QsQuery;
 use http::header;
@@ -235,8 +235,8 @@ mod tests {
         init_app_for_test,
     };
     use actix_web::{
-        test,
         Responder,
+        test,
     };
     use sqlx::PgPool;
 

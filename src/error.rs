@@ -3,9 +3,9 @@ use crate::{
     utils::incr_resource_lock_attempts::IncrResourceLockError,
 };
 use actix_web::{
-    http::StatusCode,
     HttpResponse,
     ResponseError,
+    http::StatusCode,
 };
 use serde::{
     Deserialize,

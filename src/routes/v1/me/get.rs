@@ -1,12 +1,12 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use serde::{
     Deserialize,
@@ -14,9 +14,9 @@ use serde::{
 };
 
 use sqlx::{
-    postgres::PgRow,
     FromRow,
     Row,
+    postgres::PgRow,
 };
 use time::OffsetDateTime;
 use uuid::Uuid;

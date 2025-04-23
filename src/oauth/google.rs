@@ -1,11 +1,11 @@
 use crate::oauth::OAuthClient;
 use oauth2::{
-    basic::BasicClient,
     AuthUrl,
     ClientId,
     ClientSecret,
     RedirectUrl,
     TokenUrl,
+    basic::BasicClient,
 };
 use serde::Deserialize;
 use validator::Validate;

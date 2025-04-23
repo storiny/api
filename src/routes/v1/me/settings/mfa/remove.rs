@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     error::{
         AppError,
         FormErrorResponse,
@@ -6,12 +7,11 @@ use crate::{
     },
     middlewares::identity::identity::Identity,
     utils::generate_totp::generate_totp,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{

@@ -1,7 +1,8 @@
 use crate::{
+    AppState,
     amqp::consumers::templated_email::{
-        TemplatedEmailMessage,
         TEMPLATED_EMAIL_QUEUE_NAME,
+        TemplatedEmailMessage,
     },
     constants::{
         account_activity_type::AccountActivityType,
@@ -19,13 +20,12 @@ use crate::{
         clear_user_sessions::clear_user_sessions,
         generate_hashed_token::generate_hashed_token,
     },
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     patch,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use argon2::{
@@ -38,8 +38,8 @@ use chrono::{
     Local,
 };
 use deadpool_lapin::lapin::{
-    options::BasicPublishOptions,
     BasicProperties,
+    options::BasicPublishOptions,
 };
 use serde::{
     Deserialize,
@@ -229,11 +229,11 @@ mod tests {
     };
     use actix_web::test;
     use argon2::{
-        password_hash::{
-            rand_core::OsRng,
-            SaltString,
-        },
         PasswordHasher,
+        password_hash::{
+            SaltString,
+            rand_core::OsRng,
+        },
     };
     use sqlx::{
         PgPool,

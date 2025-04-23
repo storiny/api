@@ -1,10 +1,10 @@
 use ::time::format_description::well_known::{
+    Iso8601,
     iso8601::{
         Config,
         EncodedConfig,
         TimePrecision,
     },
-    Iso8601,
 };
 use std::num::NonZeroU8;
 

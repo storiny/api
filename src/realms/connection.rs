@@ -26,8 +26,8 @@ use warp::ws::{
     WebSocket,
 };
 use yrs::{
-    updates::decoder::Decode,
     Update,
+    updates::decoder::Decode,
 };
 
 /// A warp websocket sink wrapper, that implements futures `Sink` in a way, that makes it
@@ -183,14 +183,14 @@ mod test {
     };
     use crate::realms::awareness::AwarenessRef;
     use futures_util::{
+        SinkExt,
+        Stream,
+        StreamExt,
         ready,
         stream::{
             SplitSink,
             SplitStream,
         },
-        SinkExt,
-        Stream,
-        StreamExt,
     };
     use serde::{
         Deserialize,
@@ -228,21 +228,26 @@ mod test {
         },
     };
     use tokio_tungstenite::{
-        tungstenite::Message,
         MaybeTlsStream,
         WebSocketStream,
+        tungstenite::Message,
     };
     use warp::{
-        ws::{
-            WebSocket,
-            Ws,
-        },
         Filter,
         Rejection,
         Reply,
         Sink,
+        ws::{
+            WebSocket,
+            Ws,
+        },
     };
     use yrs::{
+        Doc,
+        GetString,
+        Subscription,
+        Text,
+        Transact,
         encoding::read::Cursor,
         updates::{
             decoder::DecoderV1,
@@ -252,11 +257,6 @@ mod test {
                 EncoderV1,
             },
         },
-        Doc,
-        GetString,
-        Subscription,
-        Text,
-        Transact,
     };
 
     /// The connection handler over a pair of message streams, which implements an awareness and

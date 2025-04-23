@@ -10,9 +10,9 @@ use crate::{
     },
 };
 use argon2::{
-    password_hash::SaltString,
     Argon2,
     PasswordHasher,
+    password_hash::SaltString,
 };
 use sqlx::Row;
 use time::OffsetDateTime;

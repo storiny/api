@@ -1,4 +1,6 @@
 use crate::{
+    AppState,
+    HmacSha1,
     config::Config,
     constants::{
         blog_domain_regex::BLOG_DOMAIN_REGEX,
@@ -10,22 +12,20 @@ use crate::{
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
-    AppState,
-    HmacSha1,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use hex::encode as encode_hex;
 use hickory_resolver::{
+    TokioAsyncResolver,
     config::{
         ResolverConfig,
         ResolverOpts,
     },
-    TokioAsyncResolver,
 };
 use hmac::Mac;
 use lazy_static::lazy_static;
@@ -250,6 +250,7 @@ mod tests {
         Protocol,
     };
     use hickory_server::{
+        ServerFuture,
         authority::MessageResponseBuilder,
         proto::{
             error::ProtoError,
@@ -258,14 +259,14 @@ mod tests {
                 ResponseCode,
             },
             rr::{
+                LowerName,
+                RData,
+                Record,
                 rdata::{
                     A,
                     AAAA,
                     TXT,
                 },
-                LowerName,
-                RData,
-                Record,
             },
         },
         server::{
@@ -273,11 +274,10 @@ mod tests {
             ResponseHandler,
             ResponseInfo,
         },
-        ServerFuture,
     };
     use sqlx::{
-        testing::TestTermination,
         PgPool,
+        testing::TestTermination,
     };
     use std::{
         net::{

@@ -1,12 +1,12 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     patch,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{

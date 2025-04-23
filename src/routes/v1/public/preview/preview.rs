@@ -1,11 +1,11 @@
 use crate::{
-    error::AppError,
     AppState,
+    error::AppError,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use serde::{
     Deserialize,
@@ -14,8 +14,8 @@ use serde::{
 
 use crate::middlewares::identity::identity::Identity;
 use sqlx::{
-    types::Json,
     FromRow,
+    types::Json,
 };
 use uuid::Uuid;
 use validator::Validate;

@@ -1,4 +1,6 @@
 use crate::{
+    AppState,
+    ExternalAuthTemplate,
     constants::{
         notification_entity_type::NotificationEntityType,
         user_flag::UserFlag,
@@ -9,8 +11,8 @@ use crate::{
     },
     middlewares::identity::identity::Identity,
     oauth::{
-        icons::google::GOOGLE_LOGO,
         GoogleOAuthResponse,
+        icons::google::GOOGLE_LOGO,
     },
     routes::oauth::AuthRequest,
     utils::{
@@ -25,19 +27,17 @@ use crate::{
         get_user_sessions::get_user_sessions,
         truncate_str::truncate_str,
     },
-    AppState,
-    ExternalAuthTemplate,
 };
 use actix_http::{
-    header,
     HttpMessage,
+    header,
 };
 use actix_web::{
+    HttpRequest,
+    HttpResponse,
     get,
     http::header::ContentType,
     web,
-    HttpRequest,
-    HttpResponse,
 };
 use actix_web_validator::QsQuery;
 use oauth2::{
@@ -415,8 +415,8 @@ mod tests {
         init_app_for_test,
     };
     use actix_web::{
-        test,
         Responder,
+        test,
     };
     use sqlx::PgPool;
 

@@ -1,8 +1,8 @@
 use crate::error::AppError;
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use tracing::error;
 

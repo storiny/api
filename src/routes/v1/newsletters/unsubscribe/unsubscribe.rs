@@ -1,16 +1,16 @@
 use crate::{
-    error::AppError,
-    utils::decode_unsubscribe_fragment::decode_unsubscribe_fragment,
     AppState,
     UnsubscribeTemplate,
+    error::AppError,
+    utils::decode_unsubscribe_fragment::decode_unsubscribe_fragment,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     get,
     http::header::ContentType,
     post,
     web,
-    HttpResponse,
 };
 use sailfish::TemplateOnce;
 use serde::Deserialize;

@@ -1,15 +1,15 @@
 use crate::{
+    AppState,
     error::{
         AppError,
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use serde::Deserialize;
 use sqlx::Row;

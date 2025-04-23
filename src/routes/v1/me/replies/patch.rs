@@ -1,19 +1,19 @@
 use crate::{
+    AppState,
     error::{
         AppError,
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
     utils::md_to_html::{
-        md_to_html,
         MarkdownSource,
+        md_to_html,
     },
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     patch,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{

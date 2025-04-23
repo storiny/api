@@ -1,7 +1,8 @@
 use crate::{
+    AppState,
     amqp::consumers::templated_email::{
-        TemplatedEmailMessage,
         TEMPLATED_EMAIL_QUEUE_NAME,
+        TemplatedEmailMessage,
     },
     constants::email_template::EmailTemplate,
     error::{
@@ -11,25 +12,24 @@ use crate::{
     grpc::defs::token_def::v1::TokenType,
     middlewares::identity::identity::Identity,
     models::email_templates::password_add_verification::PasswordAddVerificationEmailTemplateData,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use argon2::{
-    password_hash::SaltString,
     Argon2,
     PasswordHasher,
+    password_hash::SaltString,
 };
 use chrono::{
     Datelike,
     Local,
 };
 use deadpool_lapin::lapin::{
-    options::BasicPublishOptions,
     BasicProperties,
+    options::BasicPublishOptions,
 };
 use nanoid::nanoid;
 use sqlx::Row;

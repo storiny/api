@@ -1,13 +1,13 @@
 use crate::{
+    AppState,
     constants::tag_regex::TAG_REGEX,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use actix_web_validator::QsQuery;
 use lazy_static::lazy_static;
@@ -18,8 +18,8 @@ use serde::{
 };
 
 use sqlx::{
-    types::Json,
     FromRow,
+    types::Json,
 };
 use time::OffsetDateTime;
 use uuid::Uuid;

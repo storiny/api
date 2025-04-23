@@ -1,13 +1,13 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     http::header,
     web,
-    HttpResponse,
 };
 use oauth2::{
     CsrfToken,

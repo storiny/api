@@ -1,10 +1,10 @@
 use lazy_static::lazy_static;
 use markdown::{
-    to_html_with_options,
     CompileOptions,
     Constructs,
     Options,
     ParseOptions,
+    to_html_with_options,
 };
 use regex::{
     Captures,

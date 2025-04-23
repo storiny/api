@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::{
         account_activity_type::AccountActivityType,
         reserved_keywords::RESERVED_KEYWORDS,
@@ -11,13 +12,12 @@ use crate::{
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     patch,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use argon2::{
@@ -180,11 +180,11 @@ mod tests {
     };
     use actix_web::test;
     use argon2::{
-        password_hash::{
-            rand_core::OsRng,
-            SaltString,
-        },
         PasswordHasher,
+        password_hash::{
+            SaltString,
+            rand_core::OsRng,
+        },
     };
     use sqlx::{
         PgPool,

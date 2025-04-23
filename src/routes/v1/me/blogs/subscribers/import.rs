@@ -1,16 +1,16 @@
 use crate::{
+    AppState,
     error::{
         AppError,
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{
@@ -23,8 +23,8 @@ use time::{
     OffsetDateTime,
 };
 use validator::{
-    validate_email,
     Validate,
+    validate_email,
 };
 
 #[derive(Deserialize, Validate)]

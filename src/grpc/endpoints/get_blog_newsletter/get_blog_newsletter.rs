@@ -10,10 +10,10 @@ use crate::grpc::{
 };
 use serde::Deserialize;
 use sqlx::{
-    types::Json,
     FromRow,
     Postgres,
     QueryBuilder,
+    types::Json,
 };
 use tonic::{
     Request,

@@ -1,10 +1,10 @@
 use crate::{
+    RedisPool,
     constants::redis_namespaces::RedisNamespace,
     utils::{
         get_client_device::ClientDevice,
         get_client_location::ClientLocation,
     },
-    RedisPool,
 };
 use anyhow::anyhow;
 use futures::stream::StreamExt;

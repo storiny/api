@@ -1,12 +1,12 @@
 use crate::{
-    error::AppError,
     AppState,
+    error::AppError,
 };
 use actix_web::{
+    HttpResponse,
     get,
     http::header,
     web,
-    HttpResponse,
 };
 use oauth2::{
     CsrfToken,

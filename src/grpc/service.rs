@@ -1,4 +1,5 @@
 use crate::{
+    RedisPool,
     config,
     grpc::{
         defs::{
@@ -110,7 +111,6 @@ use crate::{
         },
         endpoints,
     },
-    RedisPool,
 };
 use sqlx::{
     Pool,
