@@ -108,7 +108,7 @@ struct QueryParams {
     fields(
         email = %payload.email,
         remember_me = %payload.remember_me,
-        blog_domain = %payload.blog_domain,
+        blog_domain = tracing::field::Empty,
         bypass = query.bypass
     )
 )]
@@ -405,6 +405,8 @@ WHERE id = $1
 
     // Handle blog login
     if let Some(domain) = &payload.blog_domain {
+        tracing::Span::current().record("blog_domain", domain);
+
         if let Some(login_token) = handle_blog_login(
             domain,
             user_id,

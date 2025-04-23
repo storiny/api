@@ -1,10 +1,6 @@
 use crate::{
     AppState,
-    constants::{
-        notification_entity_type::NotificationEntityType,
-        resource_lock::ResourceLock,
-        user_flag::UserFlag,
-    },
+    constants::notification_entity_type::NotificationEntityType,
     error::{
         AppError,
         ToastErrorResponse,
@@ -12,21 +8,15 @@ use crate::{
     middlewares::identity::identity::Identity,
     utils::{
         clear_user_sessions::clear_user_sessions,
-        flag::Flag,
-        generate_hashed_token::generate_hashed_token,
-        generate_totp::generate_totp,
         get_client_device::get_client_device,
         get_client_location::get_client_location,
         get_user_sessions::get_user_sessions,
-        incr_resource_lock_attempts::incr_resource_lock_attempts,
-        incr_subscription_limit::incr_subscription_limit,
     },
 };
 use actix_http::HttpMessage;
 use actix_web::{
     HttpRequest,
     HttpResponse,
-    http::StatusCode,
     post,
     web,
 };
@@ -36,7 +26,6 @@ use argon2::{
     PasswordHasher,
     password_hash::SaltString,
 };
-use chrono::Datelike;
 use serde::{
     Deserialize,
     Serialize,
@@ -47,11 +36,6 @@ use storiny_session::{
     Session,
     config::SessionLifecycle,
 };
-use time::{
-    Duration,
-    OffsetDateTime,
-};
-use totp_rs::Secret;
 use tracing::debug;
 use url::Url;
 use validator::Validate;

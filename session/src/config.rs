@@ -11,7 +11,6 @@ use serde::{
 };
 
 use crate::{
-    Session,
     SessionMiddleware,
     storage::SessionStore,
 };
