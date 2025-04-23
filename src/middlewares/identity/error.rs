@@ -1,9 +1,9 @@
 //! Failure modes of identity operations.
 
 use actix_web::{
+    ResponseError,
     cookie::time::error::ComponentRange,
     http::StatusCode,
-    ResponseError,
 };
 use derive_more::{
     Display,

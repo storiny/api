@@ -1,5 +1,7 @@
 use crate::{
+    AppState,
     constants::{
+        blog_domain_regex::BLOG_DOMAIN_REGEX,
         notification_entity_type::NotificationEntityType,
         resource_lock::ResourceLock,
         user_flag::UserFlag,
@@ -16,6 +18,7 @@ use crate::{
             Flag,
             Mask,
         },
+        generate_hashed_token::generate_hashed_token,
         generate_totp::generate_totp,
         get_client_device::get_client_device,
         get_client_location::get_client_location,
@@ -24,15 +27,14 @@ use crate::{
         is_resource_locked::is_resource_locked,
         reset_resource_lock::reset_resource_lock,
     },
-    AppState,
 };
 use actix_http::HttpMessage;
 use actix_web::{
+    HttpRequest,
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpRequest,
-    HttpResponse,
 };
 use actix_web_validator::{
     Json,
@@ -47,13 +49,20 @@ use serde::{
     Deserialize,
     Serialize,
 };
-use sqlx::Row;
+use sqlx::{
+    Postgres,
+    Row,
+    Transaction,
+};
 use std::net::IpAddr;
 use storiny_session::{
-    config::SessionLifecycle,
     Session,
+    config::SessionLifecycle,
 };
-use time::OffsetDateTime;
+use time::{
+    Duration,
+    OffsetDateTime,
+};
 use totp_rs::Secret;
 use tracing::{
     debug,
@@ -63,22 +72,28 @@ use tracing::{
 use url::Url;
 use validator::Validate;
 
+// This struct is public because it is used by `blogs/verify-login` route.
 #[derive(Debug, Serialize, Deserialize, Validate)]
-struct Request {
+pub struct Request {
     #[validate(email(message = "Invalid e-mail"))]
     #[validate(length(min = 3, max = 300, message = "Invalid e-mail length"))]
-    email: String,
+    pub email: String,
     #[validate(length(min = 6, max = 64, message = "Invalid password length"))]
-    password: String,
-    remember_me: bool,
+    pub password: String,
+    pub remember_me: bool,
     #[validate(length(min = 6, max = 12, message = "Invalid authentication code"))]
-    code: Option<String>,
+    pub code: Option<String>,
+    #[validate(regex = "BLOG_DOMAIN_REGEX")]
+    #[validate(length(min = 3, max = 512, message = "Invalid blog domain"))]
+    pub blog_domain: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct Response {
-    result: String,
-    is_first_login: bool,
+// This struct is public because it is used by `blogs/verify-login` route.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Response {
+    pub result: String,
+    pub is_first_login: bool,
+    pub blog_token: Option<String>,
 }
 
 #[derive(Deserialize, Validate)]
@@ -93,6 +108,7 @@ struct QueryParams {
     fields(
         email = %payload.email,
         remember_me = %payload.remember_me,
+        blog_domain = %payload.blog_domain,
         bypass = query.bypass
     )
 )]
@@ -307,6 +323,7 @@ WHERE code = $1 AND user_id = $2
             return Ok(HttpResponse::Ok().json(Response {
                 result: "suspended".to_string(),
                 is_first_login,
+                blog_token: None,
             }));
         }
     }
@@ -335,6 +352,7 @@ WHERE id = $1
                 return Ok(HttpResponse::Ok().json(Response {
                     result: "held_for_deletion".to_string(),
                     is_first_login,
+                    blog_token: None,
                 }));
             }
         }
@@ -364,6 +382,7 @@ WHERE id = $1
                 return Ok(HttpResponse::Ok().json(Response {
                     result: "deactivated".to_string(),
                     is_first_login,
+                    blog_token: None,
                 }));
             }
         }
@@ -379,6 +398,30 @@ WHERE id = $1
             return Ok(HttpResponse::Ok().json(Response {
                 result: "email_confirmation".to_string(),
                 is_first_login,
+                blog_token: None,
+            }));
+        }
+    }
+
+    // Handle blog login
+    if let Some(domain) = &payload.blog_domain {
+        if let Some(login_token) = handle_blog_login(
+            domain,
+            user_id,
+            payload.remember_me,
+            &data.config.token_salt,
+            &mut txn,
+        )
+        .await?
+        {
+            txn.commit().await?;
+
+            debug!("blog login token generated");
+
+            return Ok(HttpResponse::Ok().json(Response {
+                result: "success".to_string(),
+                is_first_login: false,
+                blog_token: Some(login_token),
             }));
         }
     }
@@ -479,7 +522,7 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
                 match clear_user_sessions(&data.redis, user_id).await {
                     Ok(_) => {
                         debug!(
-                            "cleared {} ovreflowing sessions for the user",
+                            "cleared {} overflowing sessions for the user",
                             sessions.len()
                         );
                     }
@@ -500,7 +543,7 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
         }
     };
 
-    let login_result = Identity::login(&req.extensions(), user.get::<i64, _>("id"));
+    let login_result = Identity::login(&req.extensions(), user_id);
 
     match login_result {
         Ok(_) => {
@@ -511,6 +554,7 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
             Ok(HttpResponse::Ok().json(Response {
                 result: "success".to_string(),
                 is_first_login,
+                blog_token: None,
             }))
         }
         Err(error) => Err(AppError::InternalError(format!(
@@ -520,12 +564,84 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
     }
 }
 
+/// Generates a login token for an external blog.
+///
+/// * `domain` - The blog's domain name.
+/// * `user_id` - The ID of the user trying to log in.
+/// * `token_salt` - The salt for generating login token.
+/// * `persistent` - Whether to use a persistent browser session after login.
+/// * `txn` - The Postgres transaction.
+async fn handle_blog_login<'a>(
+    domain: &str,
+    user_id: i64,
+    persistent: bool,
+    token_salt: &str,
+    txn: &mut Transaction<'a, Postgres>,
+) -> Result<Option<String>, AppError> {
+    let blog_result = sqlx::query(
+        r#"
+SELECT b.id
+FROM blogs b
+WHERE
+    b.domain = $1
+    AND b.deleted_at IS NULL
+"#,
+    )
+    .bind(domain.to_string())
+    .fetch_one(&mut **txn)
+    .await;
+
+    match blog_result {
+        Ok(blog) => {
+            let blog_id = blog.get::<i64, _>("id");
+
+            // Generate a new login token.
+            let (token_id, hashed_token) = generate_hashed_token(token_salt)?;
+
+            // Delete old tokens
+            sqlx::query(
+                r#"
+DELETE FROM blog_login_tokens
+WHERE blog_id = $1 AND user_id = $2
+"#,
+            )
+            .bind(blog_id)
+            .bind(user_id)
+            .execute(&mut **txn)
+            .await?;
+
+            sqlx::query(
+                r#"
+INSERT INTO blog_login_tokens (id, blog_id, user_id, is_persistent_session, expires_at)
+VALUES ($1, $2, $3, $4, $5)
+"#,
+            )
+            .bind(&hashed_token)
+            .bind(blog_id)
+            .bind(user_id)
+            .bind(persistent)
+            .bind(OffsetDateTime::now_utc() + Duration::minutes(3)) // 3 minutes
+            .execute(&mut **txn)
+            .await?;
+
+            Ok(Some(token_id))
+        }
+        Err(error) => {
+            if matches!(error, sqlx::Error::RowNotFound) {
+                return Ok(None);
+            }
+
+            Err(AppError::from(error))
+        }
+    }
+}
+
 pub fn init_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(post);
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::{
         constants::{
@@ -533,13 +649,14 @@ mod tests {
             session_cookie::SESSION_COOKIE_NAME,
         },
         test_utils::{
+            RedisTestContext,
             assert_form_error_response,
             assert_response_body_text,
             assert_toast_error_response,
             exceed_resource_lock_attempts,
             get_resource_lock_attempts,
             init_app_for_test,
-            RedisTestContext,
+            res_to_string,
         },
         utils::{
             get_client_device::ClientDevice,
@@ -548,17 +665,17 @@ mod tests {
         },
     };
     use actix_web::{
+        Responder,
         get,
         services,
         test,
-        Responder,
     };
     use argon2::{
-        password_hash::{
-            rand_core::OsRng,
-            SaltString,
-        },
         PasswordHasher,
+        password_hash::{
+            SaltString,
+            rand_core::OsRng,
+        },
     };
     use redis::AsyncCommands;
     use serde_json::json;
@@ -573,7 +690,7 @@ mod tests {
 
     /// Returns the device and session data present in the session for testing.
     #[get("/get-login-details")]
-    async fn get(session: Session) -> impl Responder {
+    pub async fn get(session: Session) -> impl Responder {
         let location = session.get::<ClientLocation>("location").unwrap();
         let device = session.get::<ClientDevice>("device").unwrap();
         let domain = session.get::<String>("domain").unwrap();
@@ -586,7 +703,7 @@ mod tests {
     }
 
     /// Returns a sample email and hashed password.
-    fn get_sample_email_and_password() -> (String, String, String) {
+    pub fn get_sample_email_and_password() -> (String, String, String) {
         let password = "sample";
         let email = "someone@example.com";
         let salt = SaltString::generate(&mut OsRng);
@@ -626,6 +743,7 @@ VALUES ($1, $2, $3, $4, TRUE)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -636,6 +754,7 @@ VALUES ($1, $2, $3, $4, TRUE)
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true, // Should be `true`.
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -724,6 +843,7 @@ VALUES ($1, $2)
                 password: password.to_string(),
                 remember_me: true,
                 code: Some("0".repeat(12)),
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -734,6 +854,7 @@ VALUES ($1, $2)
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -797,6 +918,7 @@ VALUES ($1, $2, $3, $4, TRUE, TRUE, $5)
                 password: password.to_string(),
                 remember_me: true,
                 code: Some(totp.generate_current().unwrap()),
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -807,6 +929,7 @@ VALUES ($1, $2, $3, $4, TRUE, TRUE, $5)
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -843,6 +966,7 @@ VALUES ($1, $2, $3, $4, TRUE, NOW())
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -853,6 +977,7 @@ VALUES ($1, $2, $3, $4, TRUE, NOW())
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: false, // Should be false.
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -889,6 +1014,7 @@ VALUES ($1, $2, $3, $4)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -925,6 +1051,7 @@ VALUES ($1, $2, $3)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -968,6 +1095,7 @@ VALUES ($1, $2, $3, $4, $5)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -978,6 +1106,7 @@ VALUES ($1, $2, $3, $4, $5)
             &serde_json::to_string(&Response {
                 result: "suspended".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1019,6 +1148,7 @@ VALUES ($1, $2, $3, $4, $5)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1029,6 +1159,7 @@ VALUES ($1, $2, $3, $4, $5)
             &serde_json::to_string(&Response {
                 result: "suspended".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1079,6 +1210,7 @@ WHERE email = $1
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1089,6 +1221,7 @@ WHERE email = $1
             &serde_json::to_string(&Response {
                 result: "deactivated".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1139,6 +1272,7 @@ WHERE email = $1
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1149,6 +1283,7 @@ WHERE email = $1
             &serde_json::to_string(&Response {
                 result: "held_for_deletion".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1187,6 +1322,7 @@ VALUES ($1, $2, $3, $4)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1197,6 +1333,7 @@ VALUES ($1, $2, $3, $4)
             &serde_json::to_string(&Response {
                 result: "email_confirmation".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1234,6 +1371,7 @@ VALUES ($1, $2, $3, TRUE)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1273,6 +1411,7 @@ VALUES ($1, $2, $3, TRUE)
                 password: password.to_string(),
                 remember_me: true,
                 code: Some("0".repeat(7)),
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1315,6 +1454,7 @@ VALUES ($1, $2, $3, $4, TRUE)
                 password: password.to_string(),
                 remember_me: false,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1364,6 +1504,7 @@ VALUES ($1, $2, $3, $4, TRUE)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1423,6 +1564,7 @@ WHERE email = $1
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1433,6 +1575,7 @@ WHERE email = $1
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -1502,6 +1645,7 @@ WHERE email = $1
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1512,6 +1656,7 @@ WHERE email = $1
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -1533,6 +1678,199 @@ WHERE email = $1
                 .get::<Option<OffsetDateTime>, _>("deactivated_at")
                 .is_none()
         );
+
+        Ok(())
+    }
+
+    // Blog login
+
+    #[sqlx::test]
+    async fn can_handle_invalid_blog(pool: PgPool) -> sqlx::Result<()> {
+        let mut conn = pool.acquire().await?;
+        let app = init_app_for_test(post, pool, false, false, None).await.0;
+
+        let (email, password_hash, password) = get_sample_email_and_password();
+
+        // Insert the user.
+        sqlx::query(
+            r#"
+INSERT INTO users (name, username, email, password, email_verified)
+VALUES ($1, $2, $3, $4, TRUE)
+"#,
+        )
+        .bind("Sample user".to_string())
+        .bind("sample_user".to_string())
+        .bind(email.to_string())
+        .bind(password_hash)
+        .execute(&mut *conn)
+        .await?;
+
+        let req = test::TestRequest::post()
+            .uri("/v1/auth/login")
+            .set_json(Request {
+                email: email.to_string(),
+                password: password.to_string(),
+                remember_me: true,
+                code: None,
+                blog_domain: Some("test.com".to_string()),
+            })
+            .to_request();
+        let res = test::call_service(&app, req).await;
+
+        assert!(res.status().is_success());
+        assert_response_body_text(
+            res,
+            &serde_json::to_string(&Response {
+                result: "success".to_string(),
+                is_first_login: true, // Should be `true`.
+                blog_token: None,
+            })
+            .unwrap_or_default(),
+        )
+        .await;
+
+        // Should also insert a notification.
+        let result = sqlx::query(
+            r#"
+SELECT EXISTS (
+    SELECT
+        1
+    FROM
+        notification_outs
+    WHERE
+        notification_id = (
+            SELECT id FROM notifications
+            WHERE entity_type = $1
+        )
+   )
+"#,
+        )
+        .bind(NotificationEntityType::LoginAttempt as i16)
+        .fetch_one(&mut *conn)
+        .await?;
+
+        assert!(result.get::<bool, _>("exists"));
+
+        // Should also update the `last_login_at` column.
+        let result = sqlx::query(
+            r#"
+SELECT last_login_at FROM users
+WHERE username = $1
+"#,
+        )
+        .bind("sample_user")
+        .fetch_one(&mut *conn)
+        .await?;
+
+        assert!(
+            result
+                .get::<Option<OffsetDateTime>, _>("last_login_at")
+                .is_some()
+        );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn can_handle_blog_login(pool: PgPool) -> sqlx::Result<()> {
+        let mut conn = pool.acquire().await?;
+        let app = init_app_for_test(post, pool, false, false, None).await.0;
+
+        let (email, password_hash, password) = get_sample_email_and_password();
+
+        // Insert the user and blog.
+        let blog = sqlx::query(
+            r#"
+WITH inserted_user AS (
+    INSERT INTO users (name, username, email, password, email_verified)
+    VALUES ($1, $2, $3, $4, TRUE)
+    RETURNING id
+)
+INSERT INTO blogs (name, slug, domain, user_id)
+VALUES ('Sample blog', 'sample_blog', 'test.com', (SELECT id FROM inserted_user))
+RETURNING id
+"#,
+        )
+        .bind("Sample user".to_string())
+        .bind("sample_user".to_string())
+        .bind(email.to_string())
+        .bind(password_hash)
+        .fetch_one(&mut *conn)
+        .await?;
+
+        let blog_id = blog.get::<i64, _>("id");
+
+        // With `remember_me` = false
+
+        let req = test::TestRequest::post()
+            .uri("/v1/auth/login")
+            .set_json(Request {
+                email: email.to_string(),
+                password: password.to_string(),
+                remember_me: false,
+                code: None,
+                blog_domain: Some("test.com".to_string()),
+            })
+            .to_request();
+        let res = test::call_service(&app, req).await;
+
+        assert!(res.status().is_success());
+
+        let json = serde_json::from_str::<Response>(&res_to_string(res).await).unwrap();
+
+        assert!(json.blog_token.is_some());
+        assert_eq!(json.result, "success".to_string());
+
+        // Should insert a blog login token.
+        let result = sqlx::query(
+            r#"
+SELECT is_persistent_session
+FROM blog_login_tokens
+WHERE blog_id = $1
+"#,
+        )
+        .bind(blog_id)
+        .fetch_all(&mut *conn)
+        .await?;
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].get::<bool, _>("is_persistent_session"), false);
+
+        // With `remember_me` = true
+
+        let req = test::TestRequest::post()
+            .uri("/v1/auth/login")
+            .set_json(Request {
+                email: email.to_string(),
+                password: password.to_string(),
+                remember_me: true,
+                code: None,
+                blog_domain: Some("test.com".to_string()),
+            })
+            .to_request();
+        let res = test::call_service(&app, req).await;
+
+        assert!(res.status().is_success());
+
+        let json = serde_json::from_str::<Response>(&res_to_string(res).await).unwrap();
+
+        assert!(json.blog_token.is_some());
+        assert_eq!(json.result, "success".to_string());
+
+        // `is_persistent_session` should be true, and old token should get deleted.
+        let result = sqlx::query(
+            r#"
+SELECT is_persistent_session
+FROM blog_login_tokens
+WHERE blog_id = $1
+"#,
+        )
+        .bind(blog_id)
+        .fetch_all(&mut *conn)
+        .await?;
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].get::<bool, _>("is_persistent_session"), true);
 
         Ok(())
     }
@@ -1572,6 +1910,7 @@ VALUES ($1, $2, $3, $4)
                     password: "some_invalid_password".to_string(),
                     remember_me: true,
                     code: None,
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1619,6 +1958,7 @@ VALUES ($1, $2, $3, TRUE)
                     password: password.to_string(),
                     remember_me: true,
                     code: Some("0".repeat(12)),
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1669,6 +2009,7 @@ VALUES ($1, $2, $3, TRUE, $4)
                     password: password.to_string(),
                     remember_me: true,
                     code: Some("0".repeat(6)),
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1731,6 +2072,7 @@ VALUES ($1, $2, NOW())
                     password: password.to_string(),
                     remember_me: true,
                     code: Some("0".repeat(12)),
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1770,6 +2112,7 @@ VALUES ($1, $2, NOW())
                     password: "bad_password".to_string(),
                     remember_me: true,
                     code: Some("0".repeat(12)),
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1822,6 +2165,7 @@ VALUES ($1, $2, $3, $4, TRUE)
                     password: password.to_string(),
                     remember_me: true,
                     code: None,
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1898,6 +2242,7 @@ VALUES ($1, $2, $3, $4, $5, TRUE)
                     password: password.to_string(),
                     remember_me: true,
                     code: None,
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1908,6 +2253,7 @@ VALUES ($1, $2, $3, $4, $5, TRUE)
                 &serde_json::to_string(&Response {
                     result: "success".to_string(),
                     is_first_login: true,
+                    blog_token: None,
                 })
                 .unwrap_or_default(),
             )
@@ -1962,7 +2308,8 @@ VALUES ($1, $2, $3, $4, TRUE)
                     email: email.to_string(),
                     password: password.to_string(),
                     remember_me: true,
-                    code: None
+                    code: None,
+                    blog_domain: None
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;

@@ -2,12 +2,12 @@
 mod tests {
     use nanoid::nanoid;
     use sqlx::{
-        pool::PoolConnection,
-        postgres::PgRow,
         Error,
         PgPool,
         Postgres,
         Row,
+        pool::PoolConnection,
+        postgres::PgRow,
     };
     use storiny::constants::{
         sql_states::SqlState,
@@ -2457,6 +2457,56 @@ WHERE id = $1
             r#"
 SELECT EXISTS (
     SELECT 1 FROM newsletter_tokens
+    WHERE blog_id = $1
+)
+"#,
+        )
+        .bind(blog_id)
+        .fetch_one(&mut *conn)
+        .await?;
+
+        assert!(!result.get::<bool, _>("exists"));
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("user"))]
+    async fn can_delete_login_tokens_on_blog_hard_delete(pool: PgPool) -> sqlx::Result<()> {
+        let mut conn = pool.acquire().await?;
+        let blog_id = (insert_sample_blog(&mut conn).await?).get::<i64, _>("id");
+        let token_id = nanoid!(TOKEN_LENGTH);
+
+        // Insert a login token.
+        let result = sqlx::query(
+            r#"
+INSERT INTO blog_login_tokens (id, blog_id, user_id, expires_at)
+VALUES ($1, $2, $3, NOW())
+"#,
+        )
+        .bind(token_id)
+        .bind(blog_id)
+        .bind(1_i64)
+        .execute(&mut *conn)
+        .await?;
+
+        assert_eq!(result.rows_affected(), 1);
+
+        // Delete the blog
+        sqlx::query(
+            r#"
+DELETE FROM blogs
+WHERE id = $1
+"#,
+        )
+        .bind(blog_id)
+        .execute(&mut *conn)
+        .await?;
+
+        // Token should get deleted
+        let result = sqlx::query(
+            r#"
+SELECT EXISTS (
+    SELECT 1 FROM blog_login_tokens
     WHERE blog_id = $1
 )
 "#,

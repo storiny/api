@@ -1,13 +1,12 @@
-use actix_web::{
-    dev::ServiceRequest,
-    guard::GuardContext,
-    HttpMessage,
-    HttpRequest,
-};
-
 use super::{
     error::GetIdentityError,
     identity::Identity,
+};
+use actix_web::{
+    HttpMessage,
+    HttpRequest,
+    dev::ServiceRequest,
+    guard::GuardContext,
 };
 
 /// Helper trait to retrieve an [`Identity`] instance from various `actix-web`'s types.

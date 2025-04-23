@@ -1,13 +1,11 @@
 use crate::S3Client;
 use anyhow::anyhow;
-use async_recursion::async_recursion;
 
 /// Counts the number of S3 objects in the specified bucket.
 ///
 /// * `client` - The S3 client instance.
 /// * `bucket_name` - The name of the target bucket containing the objects.
 /// * `prefix` - An optional string prefix to match keys and limit the objects.
-#[async_recursion]
 pub async fn count_s3_objects(
     client: &S3Client,
     bucket_name: &str,
@@ -70,7 +68,6 @@ mod tests {
                 &self.s3_client,
                 S3_BASE_BUCKET,
                 Some("test-".to_string()),
-                None,
             )
             .await
             .unwrap();

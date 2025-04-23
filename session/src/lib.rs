@@ -61,6 +61,9 @@ pub mod test_helpers {
 
     mod acceptance_tests {
         use actix_web::{
+            App,
+            HttpResponse,
+            Result,
             cookie::time,
             dev::{
                 Service,
@@ -71,31 +74,28 @@ pub mod test_helpers {
             test,
             web::{
                 self,
+                Bytes,
                 get,
                 post,
                 resource,
-                Bytes,
             },
-            App,
-            HttpResponse,
-            Result,
         };
         use serde::{
             Deserialize,
             Serialize,
         };
         use serde_json::{
-            json,
             Value,
+            json,
         };
 
         use crate::{
-            config::SessionLifecycle,
-            storage::SessionStore,
-            test_helpers::key,
             Session,
             SessionExt,
             SessionMiddleware,
+            config::SessionLifecycle,
+            storage::SessionStore,
+            test_helpers::key,
         };
 
         pub(super) async fn basic_workflow<F, Store>(store_builder: F)

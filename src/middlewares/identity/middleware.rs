@@ -3,10 +3,13 @@ use super::{
     identity::IdentityInner,
 };
 use actix_utils::future::{
-    ready,
     Ready,
+    ready,
 };
 use actix_web::{
+    Error,
+    HttpMessage as _,
+    Result,
     body::MessageBody,
     dev::{
         Service,
@@ -14,9 +17,6 @@ use actix_web::{
         ServiceResponse,
         Transform,
     },
-    Error,
-    HttpMessage as _,
-    Result,
 };
 use futures_core::future::LocalBoxFuture;
 use std::rc::Rc;

@@ -1,14 +1,13 @@
+use crate::Session;
 use actix_web::{
+    HttpMessage,
+    HttpRequest,
     dev::{
         ServiceRequest,
         ServiceResponse,
     },
     guard::GuardContext,
-    HttpMessage,
-    HttpRequest,
 };
-
-use crate::Session;
 
 /// Extract a [`Session`] object from various `actix-web` types (e.g. `HttpRequest`,
 /// `ServiceRequest`, `ServiceResponse`).

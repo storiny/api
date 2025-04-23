@@ -219,7 +219,6 @@ mod tests {
                 &self.s3_client,
                 S3_SITEMAPS_BUCKET,
                 Some("stories-".to_string()),
-                None,
             )
             .await
             .unwrap();

@@ -65,6 +65,7 @@ pub fn init_v1_routes(cfg: &mut web::ServiceConfig) {
     v1::blogs::writers::init_routes(cfg);
     v1::blogs::feed::init_routes(cfg);
     v1::blogs::subscribe::init_routes(cfg);
+    v1::blogs::verify_login::init_routes(cfg);
     // Me
     v1::me::get::init_routes(cfg);
     // Me - User activity

@@ -454,7 +454,7 @@ mod tests {
                         .expect("failed to FLUSHDB");
                 },
                 async {
-                    delete_s3_objects_using_prefix(&self.s3_client, S3_UPLOADS_BUCKET, None, None)
+                    delete_s3_objects_using_prefix(&self.s3_client, S3_UPLOADS_BUCKET, None)
                         .await
                         .unwrap()
                 },

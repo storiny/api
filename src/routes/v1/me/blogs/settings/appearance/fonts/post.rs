@@ -515,7 +515,7 @@ VALUES ($5, $6, $7, (SELECT id FROM inserted_user), TRUE)
                         .expect("failed to FLUSHDB");
                 },
                 async {
-                    delete_s3_objects_using_prefix(&self.s3_client, S3_FONTS_BUCKET, None, None)
+                    delete_s3_objects_using_prefix(&self.s3_client, S3_FONTS_BUCKET, None)
                         .await
                         .unwrap()
                 },

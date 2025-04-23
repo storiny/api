@@ -1,4 +1,6 @@
 use crate::{
+    Session,
+    SessionStatus,
     config::{
         self,
         Configuration,
@@ -11,14 +13,13 @@ use crate::{
         SessionKey,
         SessionStore,
     },
-    Session,
-    SessionStatus,
 };
 use actix_utils::future::{
-    ready,
     Ready,
+    ready,
 };
 use actix_web::{
+    HttpResponse,
     body::MessageBody,
     cookie::{
         Cookie,
@@ -26,18 +27,17 @@ use actix_web::{
         Key,
     },
     dev::{
-        forward_ready,
         ResponseHead,
         Service,
         ServiceRequest,
         ServiceResponse,
         Transform,
+        forward_ready,
     },
     http::header::{
         HeaderValue,
         SET_COOKIE,
     },
-    HttpResponse,
 };
 use anyhow::Context;
 use serde_json::{
@@ -135,6 +135,7 @@ fn e500<E: fmt::Debug + fmt::Display + 'static>(err: E) -> actix_web::Error {
 }
 
 static LIFECYCLE_KEY: &str = "lifecycle";
+static DOMAIN_KEY: &str = "cookie_domain";
 
 #[doc(hidden)]
 #[non_exhaustive]
@@ -167,6 +168,7 @@ where
             let (session_key, session_state) =
                 load_session_state(session_key, storage_backend.as_ref()).await?;
             let mut session_lifecycle = SessionLifecycle::PersistentSession;
+            let mut cookie_domain: Option<String> = None;
 
             if let Some(lifecycle) = session_state.get(LIFECYCLE_KEY) {
                 let lifecycle = lifecycle
@@ -176,18 +178,28 @@ where
                 session_lifecycle = SessionLifecycle::from_i32(lifecycle as i32);
             }
 
-            Session::set_session(&mut req, session_state, session_lifecycle);
+            if let Some(domain) = session_state.get(DOMAIN_KEY) {
+                let domain = domain.as_str();
+                cookie_domain = domain.map(|val| val.to_string());
+            }
+
+            Session::set_session(&mut req, session_state, session_lifecycle, cookie_domain);
 
             let mut res = service.call(req).await?;
-            let (lifecycle, status, mut session_state) = Session::get_changes(&mut res);
+            let (lifecycle, cookie_domain, status, mut session_state) =
+                Session::get_changes(&mut res);
 
-            // We only insert the lifecycle key into the session if it already exist or is non-empty
-            // to avoid creating sessions on every request.
+            // We only insert the dynamic properties into the session if they already exist or are
+            // non-empty to avoid creating sessions on every request.
             if session_key.is_some() || !session_state.is_empty() {
                 session_state.insert(
                     LIFECYCLE_KEY.to_string(),
                     Value::from(lifecycle.clone() as i32),
                 );
+
+                if let Some(domain) = cookie_domain.clone() {
+                    session_state.insert(DOMAIN_KEY.to_string(), Value::from(domain));
+                }
             }
 
             match session_key {
@@ -205,6 +217,7 @@ where
                             session_key,
                             &configuration.cookie,
                             lifecycle,
+                            cookie_domain,
                         )
                         .map_err(e500)?;
                     }
@@ -227,6 +240,7 @@ where
                                 session_key,
                                 &configuration.cookie,
                                 lifecycle,
+                                cookie_domain,
                             )
                             .map_err(e500)?;
                         }
@@ -236,6 +250,7 @@ where
 
                             delete_session_cookie(
                                 res.response_mut().head_mut(),
+                                cookie_domain,
                                 &configuration.cookie,
                             )
                             .map_err(e500)?;
@@ -254,6 +269,7 @@ where
                                 session_key,
                                 &configuration.cookie,
                                 lifecycle,
+                                cookie_domain,
                             )
                             .map_err(e500)?;
                         }
@@ -354,6 +370,7 @@ fn set_session_cookie(
     session_key: SessionKey,
     config: &CookieConfiguration,
     session_lifecycle: SessionLifecycle,
+    domain: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let value: String = session_key.into();
     let mut cookie = Cookie::new(config.name.clone(), value);
@@ -370,8 +387,8 @@ fn set_session_cookie(
         }
     }
 
-    if let Some(ref domain) = config.domain {
-        cookie.set_domain(domain.clone());
+    if let Some(domain) = domain.clone().or_else(|| config.domain.clone()) {
+        cookie.set_domain(domain);
     }
 
     let mut jar = CookieJar::new();
@@ -389,6 +406,7 @@ fn set_session_cookie(
 
 fn delete_session_cookie(
     response: &mut ResponseHead,
+    domain: Option<String>,
     config: &CookieConfiguration,
 ) -> Result<(), anyhow::Error> {
     let removal_cookie = Cookie::build(config.name.clone(), "")
@@ -397,7 +415,8 @@ fn delete_session_cookie(
         .http_only(config.http_only)
         .same_site(config.same_site);
 
-    let mut removal_cookie = if let Some(ref domain) = config.domain {
+    let mut removal_cookie = if let Some(domain) = domain.clone().or_else(|| config.domain.clone())
+    {
         removal_cookie.domain(domain)
     } else {
         removal_cookie
