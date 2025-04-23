@@ -310,17 +310,16 @@ mod tests {
             res_to_string,
         },
         utils::{
+            generate_hashed_token::generate_hashed_token,
             get_client_device::ClientDevice,
             get_client_location::ClientLocation,
             get_user_sessions::UserSession,
         },
     };
     use actix_web::{
-        Responder,
         services,
         test,
     };
-    use argon2::PasswordHasher;
     use redis::AsyncCommands;
     use sqlx::PgPool;
     use std::net::{
@@ -329,6 +328,10 @@ mod tests {
         SocketAddrV4,
     };
     use storiny_macros::test_context;
+    use time::{
+        Duration,
+        OffsetDateTime,
+    };
     use uuid::Uuid;
 
     #[sqlx::test]
@@ -491,7 +494,7 @@ RETURNING blog_id
         .fetch_one(&mut *conn)
         .await?;
 
-        let blog_id = blog.get::<i64, _>("id");
+        let blog_id = blog.get::<i64, _>("blog_id");
 
         // Try to verify login token.
         let req = test::TestRequest::post()
@@ -536,7 +539,7 @@ RETURNING blog_id
         .fetch_one(&mut *conn)
         .await?;
 
-        let blog_id = blog.get::<i64, _>("id");
+        let blog_id = blog.get::<i64, _>("blog_id");
 
         // Try to verify login token.
         let req = test::TestRequest::post()
@@ -648,6 +651,7 @@ RETURNING id
 
             // Verify login token.
             let req = test::TestRequest::post()
+                .append_header(("origin", "https://test.com"))
                 .uri(&format!("/v1/blogs/{blog_id}/verify-login"))
                 .set_json(Request { token: login_token })
                 .to_request();
