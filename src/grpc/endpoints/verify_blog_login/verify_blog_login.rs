@@ -52,7 +52,6 @@ use tracing::{
     error,
     warn,
 };
-// TODO: Revert migration `blog_login_tokens`
 
 /// The TTL value (in seconds) for a user's session.
 static SESSION_TTL: i64 = Duration::weeks(1).whole_seconds();
@@ -455,10 +454,11 @@ mod tests {
 
     mod serial {
         use super::*;
+        use tonic::Code;
 
         #[test_context(RedisTestContext)]
         #[sqlx::test(fixtures("verify_blog_login"))]
-        async fn can_verify_blog_login(_ctx: &mut RedisTestContext, pool: PgPool) {
+        async fn can_verify_blog_login_by_id(_ctx: &mut RedisTestContext, pool: PgPool) {
             test_grpc_service(
                 pool,
                 true,
@@ -548,10 +548,10 @@ SELECT EXISTS (
                     let result = sqlx::query(
                         r#"
 SELECT last_login_at FROM users
-WHERE username = $1
+WHERE id = $1
 "#,
                     )
-                    .bind("sample_user")
+                    .bind(user_id)
                     .fetch_one(&mut *db_conn)
                     .await
                     .unwrap();
@@ -661,9 +661,103 @@ WHERE username = $1
 
         #[test_context(RedisTestContext)]
         #[sqlx::test(fixtures("verify_blog_login"))]
-        async fn can_handle_an_expired_token(_ctx: &mut RedisTestContext, _pool: PgPool) {
+        async fn can_verify_blog_login_by_slug(_ctx: &mut RedisTestContext, pool: PgPool) {
             test_grpc_service(
-                _pool,
+                pool,
+                true,
+                Box::new(|mut client, _pool, redis_pool, user_id| async move {
+                    let config = get_app_config().unwrap();
+                    let mut redis_conn = redis_pool.get().await.unwrap();
+                    let user_id = user_id.unwrap();
+                    let blog_id = 1_i64;
+                    let domain = "test.com";
+                    let (cache_key, token_id, _) = get_token(&config.token_salt);
+
+                    insert_login_token(
+                        &cache_key,
+                        &BlogLoginTokenData {
+                            uid: user_id,
+                            bid: blog_id,
+                            persistent: true,
+                            loc: None,
+                            device: None,
+                        },
+                        &mut *redis_conn,
+                    )
+                    .await
+                    .unwrap();
+
+                    let response = client
+                        .verify_blog_login(Request::new(VerifyBlogLoginRequest {
+                            blog_identifier: "test-blog".to_string(),
+                            token: token_id.to_string(),
+                            host: domain.to_string(),
+                        }))
+                        .await;
+
+                    assert!(response.is_ok());
+
+                    let response = response.unwrap().into_inner();
+
+                    assert!(response.cookie_value.is_some());
+                    assert_eq!(response.is_token_valid, true);
+                }),
+            )
+            .await;
+        }
+
+        #[test_context(RedisTestContext)]
+        #[sqlx::test(fixtures("verify_blog_login"))]
+        async fn can_verify_blog_login_by_domain(_ctx: &mut RedisTestContext, pool: PgPool) {
+            test_grpc_service(
+                pool,
+                true,
+                Box::new(|mut client, _pool, redis_pool, user_id| async move {
+                    let config = get_app_config().unwrap();
+                    let mut redis_conn = redis_pool.get().await.unwrap();
+                    let user_id = user_id.unwrap();
+                    let blog_id = 1_i64;
+                    let domain = "test.com";
+                    let (cache_key, token_id, _) = get_token(&config.token_salt);
+
+                    insert_login_token(
+                        &cache_key,
+                        &BlogLoginTokenData {
+                            uid: user_id,
+                            bid: blog_id,
+                            persistent: true,
+                            loc: None,
+                            device: None,
+                        },
+                        &mut *redis_conn,
+                    )
+                    .await
+                    .unwrap();
+
+                    let response = client
+                        .verify_blog_login(Request::new(VerifyBlogLoginRequest {
+                            blog_identifier: domain.to_string(),
+                            token: token_id.to_string(),
+                            host: domain.to_string(),
+                        }))
+                        .await;
+
+                    assert!(response.is_ok());
+
+                    let response = response.unwrap().into_inner();
+
+                    assert!(response.cookie_value.is_some());
+                    assert_eq!(response.is_token_valid, true);
+                }),
+            )
+            .await;
+        }
+
+        #[test_context(RedisTestContext)]
+        #[sqlx::test]
+        async fn can_handle_an_expired_token(_ctx: &mut RedisTestContext, pool: PgPool) {
+            test_grpc_service(
+                pool,
                 true,
                 Box::new(|mut client, _, redis_pool, user_id| async move {
                     let config = get_app_config().unwrap();
@@ -715,10 +809,10 @@ WHERE username = $1
         #[sqlx::test(fixtures("verify_blog_login"))]
         async fn can_reject_verification_for_unmatched_host(
             _ctx: &mut RedisTestContext,
-            _pool: PgPool,
+            pool: PgPool,
         ) {
             test_grpc_service(
-                _pool,
+                pool,
                 true,
                 Box::new(|mut client, _, redis_pool, user_id| async move {
                     let config = get_app_config().unwrap();
@@ -761,12 +855,122 @@ WHERE username = $1
 
         #[test_context(RedisTestContext)]
         #[sqlx::test(fixtures("verify_blog_login"))]
-        async fn can_clear_overflowing_sessions_on_verification(
+        async fn can_reject_verification_for_unmatched_blog_id(
             _ctx: &mut RedisTestContext,
-            _pool: PgPool,
+            pool: PgPool,
         ) {
             test_grpc_service(
-                _pool,
+                pool,
+                true,
+                Box::new(|mut client, _, redis_pool, user_id| async move {
+                    let config = get_app_config().unwrap();
+                    let mut redis_conn = redis_pool.get().await.unwrap();
+                    let user_id = user_id.unwrap();
+                    let blog_id = 10_i64; // Invalid blog ID.
+                    let domain = "test.com";
+                    let (cache_key, token_id, _) = get_token(&config.token_salt);
+
+                    insert_login_token(
+                        &cache_key,
+                        &BlogLoginTokenData {
+                            uid: user_id,
+                            bid: blog_id,
+                            persistent: true,
+                            loc: None,
+                            device: None,
+                        },
+                        &mut *redis_conn,
+                    )
+                    .await
+                    .unwrap();
+
+                    let response = client
+                        .verify_blog_login(Request::new(VerifyBlogLoginRequest {
+                            blog_identifier: "test-blog".to_string(),
+                            token: token_id.to_string(),
+                            host: domain.to_string(),
+                        }))
+                        .await;
+
+                    assert!(response.is_ok());
+
+                    let response = response.unwrap().into_inner();
+
+                    assert_eq!(response.is_token_valid, false);
+                }),
+            )
+            .await;
+        }
+
+        #[test_context(RedisTestContext)]
+        #[sqlx::test(fixtures("verify_blog_login"))]
+        async fn can_reject_verification_for_soft_deleted_blog(
+            _ctx: &mut RedisTestContext,
+            pool: PgPool,
+        ) {
+            test_grpc_service(
+                pool,
+                true,
+                Box::new(|mut client, pool, redis_pool, user_id| async move {
+                    let config = get_app_config().unwrap();
+                    let mut redis_conn = redis_pool.get().await.unwrap();
+                    let user_id = user_id.unwrap();
+                    let blog_id = 1_i64;
+                    let domain = "test.com";
+                    let (cache_key, token_id, _) = get_token(&config.token_salt);
+
+                    insert_login_token(
+                        &cache_key,
+                        &BlogLoginTokenData {
+                            uid: user_id,
+                            bid: blog_id,
+                            persistent: true,
+                            loc: None,
+                            device: None,
+                        },
+                        &mut *redis_conn,
+                    )
+                    .await
+                    .unwrap();
+
+                    // Soft-delete the blog.
+                    let result = sqlx::query(
+                        r#"
+UPDATE blogs
+SET deleted_at = NOW()
+WHERE id = $1
+"#,
+                    )
+                    .bind(blog_id)
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+
+                    assert_eq!(result.rows_affected(), 1);
+
+                    let response = client
+                        .verify_blog_login(Request::new(VerifyBlogLoginRequest {
+                            blog_identifier: blog_id.to_string(),
+                            token: token_id.to_string(),
+                            host: domain.to_string(),
+                        }))
+                        .await;
+
+                    assert!(response.is_err());
+                    assert_eq!(response.unwrap_err().code(), Code::NotFound);
+                }),
+            )
+            .await;
+        }
+
+        #[test_context(RedisTestContext)]
+        #[sqlx::test(fixtures("verify_blog_login"))]
+        async fn can_clear_overflowing_sessions_on_verification(
+            _ctx: &mut RedisTestContext,
+            pool: PgPool,
+        ) {
+            test_grpc_service(
+                pool,
                 true,
                 Box::new(|mut client, _, redis_pool, user_id| async move {
                     let config = get_app_config().unwrap();
