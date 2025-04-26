@@ -24,6 +24,8 @@ use crate::{
                 GetBlogWritersInfoResponse,
                 GetUserBlogsInfoRequest,
                 GetUserBlogsInfoResponse,
+                VerifyBlogLoginRequest,
+                VerifyBlogLoginResponse,
             },
             comment_def::v1::{
                 GetCommentRequest,
@@ -112,6 +114,7 @@ use crate::{
         endpoints,
     },
 };
+use actix_web::cookie::Key;
 use sqlx::{
     Pool,
     Postgres,
@@ -131,6 +134,8 @@ pub struct GrpcService {
     pub db_pool: Pool<Postgres>,
     /// The Redis connection instance.
     pub redis_pool: RedisPool,
+    /// The secret key used to sign authentication cookies.
+    pub cookie_secret_key: Key,
 }
 
 #[tonic::async_trait]
@@ -358,6 +363,13 @@ impl ApiService for GrpcService {
         request: Request<GetBlogWritersInfoRequest>,
     ) -> Result<Response<GetBlogWritersInfoResponse>, Status> {
         endpoints::get_blog_writers_info::get_blog_writers_info(self, request).await
+    }
+
+    async fn verify_blog_login(
+        &self,
+        request: Request<VerifyBlogLoginRequest>,
+    ) -> Result<Response<VerifyBlogLoginResponse>, Status> {
+        endpoints::verify_blog_login::verify_blog_login(self, request).await
     }
 
     async fn get_user_blogs_info(

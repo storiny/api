@@ -5,6 +5,15 @@ use derive_more::{
     From,
 };
 
+/// The source of the client session key.
+#[derive(Debug, Eq, PartialEq)]
+pub enum SessionKeySource {
+    /// Authorization header (for blogs hosted on external domains).
+    AuthorizationHeader,
+    /// Session cookie.
+    Cookie,
+}
+
 /// A session key, the string stored in a client-side cookie to associate a user with its session
 /// state on the backend.
 ///
@@ -20,7 +29,7 @@ use derive_more::{
 /// let session_key: Result<SessionKey, _> = key.try_into();
 /// assert!(session_key.is_err());
 /// ```
-#[derive(Debug, Display, PartialEq, Eq)]
+#[derive(Debug, Clone, Display, PartialEq, Eq)]
 pub struct SessionKey(String);
 
 impl TryFrom<String> for SessionKey {

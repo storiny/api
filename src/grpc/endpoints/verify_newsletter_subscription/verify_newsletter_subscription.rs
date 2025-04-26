@@ -31,11 +31,6 @@ pub async fn verify_newsletter_subscription(
     request: Request<VerifyNewsletterSubscriptionRequest>,
 ) -> Result<Response<VerifyNewsletterSubscriptionResponse>, Status> {
     let pg_pool = &client.db_pool;
-    let mut txn = pg_pool.begin().await.map_err(|error| {
-        error!("unable to begin the transaction: {error:?}");
-        Status::internal("Database error")
-    })?;
-
     let token_id = request.into_inner().identifier;
 
     // Validate token length.
@@ -57,6 +52,11 @@ pub async fn verify_newsletter_subscription(
             error!("unable to generate token hash: {error:?}");
             Status::internal("unable to verify the token")
         })?;
+
+    let mut txn = pg_pool.begin().await.map_err(|error| {
+        error!("unable to begin the transaction: {error:?}");
+        Status::internal("Database error")
+    })?;
 
     let token_result = sqlx::query(
         r#"

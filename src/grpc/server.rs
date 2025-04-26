@@ -6,6 +6,7 @@ use crate::{
         service::GrpcService,
     },
 };
+use actix_web::cookie::Key;
 use sqlx::{
     Pool,
     Postgres,
@@ -49,6 +50,7 @@ pub async fn start_grpc_server(
 ) -> io::Result<()> {
     let endpoint = config.grpc_endpoint.clone();
     let secret_token = config.grpc_secret_token.clone();
+    let cookie_secret_key = Key::from(config.session_secret_key.as_bytes());
     let is_dev = config.is_dev;
 
     tokio::spawn(async move {
@@ -75,6 +77,7 @@ pub async fn start_grpc_server(
                         redis_pool,
                         config,
                         db_pool,
+                        cookie_secret_key,
                     })
                     .send_compressed(CompressionEncoding::Gzip)
                     .accept_compressed(CompressionEncoding::Gzip),
@@ -85,6 +88,7 @@ pub async fn start_grpc_server(
                     redis_pool,
                     config,
                     db_pool,
+                    cookie_secret_key,
                 })
                 .accept_compressed(CompressionEncoding::Gzip)
                 .send_compressed(CompressionEncoding::Gzip),

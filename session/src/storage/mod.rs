@@ -1,7 +1,9 @@
 //! Storage backend for session state.
 
 mod interface;
+mod redis_rs;
 mod session_key;
+mod utils;
 
 pub use self::{
     interface::{
@@ -10,12 +12,12 @@ pub use self::{
         SessionStore,
         UpdateError,
     },
-    session_key::SessionKey,
+    session_key::{
+        SessionKey,
+        SessionKeySource,
+    },
+    utils::generate_session_key,
 };
-
-mod redis_rs;
-mod utils;
-
 pub use redis_rs::{
     RedisSessionStore,
     RedisSessionStoreBuilder,

@@ -168,9 +168,9 @@ mod tests {
 
         #[test_context(RedisTestContext)]
         #[sqlx::test]
-        async fn can_return_login_activity(_ctx: &mut RedisTestContext, pool: PgPool) {
+        async fn can_return_login_activity(_ctx: &mut RedisTestContext, _pool: PgPool) {
             test_grpc_service(
-                pool,
+                _pool,
                 true,
                 Box::new(|mut client, _, redis_pool, user_id| async move {
                     let config = get_app_config().unwrap();
@@ -203,6 +203,7 @@ mod tests {
                                 }),
                                 domain: Some("example.com".to_string()),
                                 ack: false,
+                                ext_blog: Some(false),
                             })
                             .unwrap(),
                         )

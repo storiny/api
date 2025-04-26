@@ -6,7 +6,7 @@ use serde::{
 use std::borrow::Cow;
 use user_agent_parser::UserAgentParser;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClientDevice {
     pub display_name: String,
     pub r#type: i32,
@@ -15,7 +15,7 @@ pub struct ClientDevice {
 /// Parses and return client's device information from the user-agent string.
 ///
 /// * `ua` - User-agent string
-/// * `parser` - User-agent parser instannce
+/// * `parser` - User-agent parser instance
 pub fn get_client_device(ua: &str, parser: &UserAgentParser) -> ClientDevice {
     let device = parser.parse_device(ua);
     let os = parser.parse_os(ua);

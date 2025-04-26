@@ -10,6 +10,7 @@ use crate::{
     },
     test_utils::get_redis_pool,
 };
+use actix_web::cookie::Key;
 use sqlx::{
     PgPool,
     Row,
@@ -45,6 +46,8 @@ pub async fn test_grpc_service<B>(
 ) where
     B: Future<Output = ()>,
 {
+    let config = get_app_config().unwrap();
+    let cookie_secret_key = Key::from(config.session_secret_key.as_bytes());
     let mut user_id: i64 = 1_i64;
 
     if insert_user {
@@ -74,12 +77,14 @@ RETURNING id
 
     // Redis
     let redis_pool = get_redis_pool();
+
     let server_future = async {
         let result = Server::builder()
             .add_service(ApiServiceServer::new(GrpcService {
                 config: get_app_config().unwrap(),
                 redis_pool: redis_pool.clone(),
                 db_pool: db_pool.clone(),
+                cookie_secret_key,
             }))
             .serve_with_incoming(stream)
             .await;

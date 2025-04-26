@@ -108,8 +108,6 @@ impl<Store: SessionStore> SessionMiddlewareBuilder<Store> {
     ///
     /// Use `None` to leave the attribute unspecified. If unspecified, the attribute defaults
     /// to the same host that set the cookie, excluding subdomains.
-    ///
-    /// Note: Value set by [Session::set_cookie_domain] will override this value.
     pub fn cookie_domain(mut self, domain: Option<String>) -> Self {
         self.configuration.cookie.domain = domain;
         self
@@ -162,7 +160,7 @@ pub(crate) fn default_configuration(key: Key) -> Configuration {
             secure: true,
             http_only: true,
             name: "id".into(),
-            same_site: SameSite::Lax,
+            same_site: SameSite::Strict,
             path: "/".into(),
             domain: None,
             max_age: None,

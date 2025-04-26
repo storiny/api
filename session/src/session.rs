@@ -95,7 +95,6 @@ struct SessionInner {
     state: Map<String, Value>,
     status: SessionStatus,
     lifecycle: SessionLifecycle,
-    cookie_domain: Option<String>,
 }
 
 impl Session {
@@ -174,7 +173,7 @@ impl Session {
         }
     }
 
-    /// Removes session both client and server side.
+    /// Removes session from both client and server side.
     pub fn purge(&self) {
         let mut inner = self.0.borrow_mut();
         inner.status = SessionStatus::Purged;
@@ -209,25 +208,6 @@ impl Session {
         inner.lifecycle.to_owned()
     }
 
-    /// Sets the domain of the session cookie.
-    pub fn set_cookie_domain(&self, domain: Option<String>) {
-        let mut inner = self.0.borrow_mut();
-
-        if inner.status != SessionStatus::Purged {
-            if inner.status != SessionStatus::Renewed {
-                inner.status = SessionStatus::Changed;
-            }
-
-            inner.cookie_domain = domain;
-        }
-    }
-
-    /// Returns the domain of the session cookie.
-    pub fn get_cookie_domain(&self) -> Option<String> {
-        let inner = self.0.borrow_mut();
-        inner.cookie_domain.to_owned()
-    }
-
     /// Adds the given key-value pairs to the session on the request.
     ///
     /// Values that match keys already existing on the session will be overwritten.
@@ -236,16 +216,14 @@ impl Session {
         req: &mut ServiceRequest,
         data: impl IntoIterator<Item = (String, Value)>,
         lifecycle: SessionLifecycle,
-        cookie_domain: Option<String>,
     ) {
         let session = Session::get_session(&mut req.extensions_mut());
         let mut inner = session.0.borrow_mut();
         inner.state.extend(data);
         inner.lifecycle = lifecycle;
-        inner.cookie_domain = cookie_domain;
     }
 
-    /// Returns session lifecycle, session cookie domain, session status, and iterator of key-value
+    /// Returns session lifecycle, session status, and iterator of key-value
     /// pairs of changes.
     ///
     /// This is a destructive operation - the session state is removed from the request extensions
@@ -254,12 +232,7 @@ impl Session {
     #[allow(clippy::needless_pass_by_ref_mut)]
     pub(crate) fn get_changes<B>(
         res: &mut ServiceResponse<B>,
-    ) -> (
-        SessionLifecycle,
-        Option<String>,
-        SessionStatus,
-        Map<String, Value>,
-    ) {
+    ) -> (SessionLifecycle, SessionStatus, Map<String, Value>) {
         if let Some(s_impl) = res
             .request()
             .extensions()
@@ -268,14 +241,12 @@ impl Session {
             let state = mem::take(&mut s_impl.borrow_mut().state);
             (
                 s_impl.borrow().lifecycle.clone(),
-                s_impl.borrow().cookie_domain.clone(),
                 s_impl.borrow().status.clone(),
                 state,
             )
         } else {
             (
                 SessionLifecycle::PersistentSession,
-                None,
                 SessionStatus::Unchanged,
                 Map::new(),
             )

@@ -15,4 +15,6 @@ pub enum RedisNamespace {
     BackgroundJob,
     #[strum(serialize = "rl")]
     ResourceLimit,
+    #[strum(serialize = "bl")]
+    BlogLogin,
 }
