@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     error::{
         AppError,
         FormErrorResponse,
@@ -9,13 +10,12 @@ use crate::{
         generate_recovery_codes::generate_recovery_codes,
         generate_totp::generate_totp,
     },
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{

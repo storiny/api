@@ -4,10 +4,10 @@ use quote::{
     quote,
 };
 use syn::{
+    FnArg,
     punctuated::Punctuated,
     spanned::Spanned,
     token::Comma,
-    FnArg,
 };
 
 /// Macro to use on tests to add the setup/teardown functionality.

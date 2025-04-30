@@ -1,13 +1,13 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
     utils::clear_user_sessions::clear_user_sessions,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 
 #[post("/v1/me/settings/sessions/destroy")]
@@ -36,12 +36,12 @@ mod tests {
     use crate::{
         constants::redis_namespaces::RedisNamespace,
         test_utils::{
-            init_app_for_test,
             RedisTestContext,
+            init_app_for_test,
         },
         utils::get_user_sessions::{
-            get_user_sessions,
             UserSession,
+            get_user_sessions,
         },
     };
     use actix_web::test;

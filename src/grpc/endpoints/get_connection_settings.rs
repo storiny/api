@@ -15,8 +15,8 @@ use crate::{
     },
 };
 use sqlx::{
-    postgres::PgRow,
     Row,
+    postgres::PgRow,
 };
 use time::OffsetDateTime;
 use tonic::{

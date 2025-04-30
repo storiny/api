@@ -21,7 +21,11 @@ mod session_ext;
 pub mod storage;
 
 pub use self::{
-    middleware::SessionMiddleware,
+    middleware::{
+        EXTERNAL_BLOG_KEY,
+        LIFECYCLE_KEY,
+        SessionMiddleware,
+    },
     session::{
         Session,
         SessionGetError,
@@ -53,6 +57,7 @@ pub mod test_helpers {
         F: Fn() -> Store + Clone + Send + 'static,
     {
         acceptance_tests::basic_workflow(store_builder.clone()).await;
+        acceptance_tests::authorization_header(store_builder.clone()).await;
         acceptance_tests::expiration_is_refreshed_on_changes(store_builder.clone()).await;
         acceptance_tests::complex_workflow(store_builder.clone(), is_invalidation_supported).await;
         acceptance_tests::lifecycle(store_builder.clone()).await;
@@ -61,41 +66,42 @@ pub mod test_helpers {
 
     mod acceptance_tests {
         use actix_web::{
+            App,
+            HttpResponse,
+            Result,
             cookie::time,
             dev::{
                 Service,
                 ServiceResponse,
             },
             guard,
+            http::header::AUTHORIZATION,
             middleware,
             test,
             web::{
                 self,
+                Bytes,
                 get,
                 post,
                 resource,
-                Bytes,
             },
-            App,
-            HttpResponse,
-            Result,
         };
         use serde::{
             Deserialize,
             Serialize,
         };
         use serde_json::{
-            json,
             Value,
+            json,
         };
 
         use crate::{
-            config::SessionLifecycle,
-            storage::SessionStore,
-            test_helpers::key,
             Session,
             SessionExt,
             SessionMiddleware,
+            config::SessionLifecycle,
+            storage::SessionStore,
+            test_helpers::key,
         };
 
         pub(super) async fn basic_workflow<F, Store>(store_builder: F)
@@ -135,6 +141,41 @@ pub mod test_helpers {
                 .to_request();
             let body = test::call_and_read_body(&app, request).await;
             assert_eq!(body, Bytes::from_static(b"counter: 100"));
+        }
+
+        pub(super) async fn authorization_header<F, Store>(store_builder: F)
+        where
+            Store: SessionStore + 'static,
+            F: Fn() -> Store + Clone + Send + 'static,
+        {
+            let app = test::init_service(
+                App::new()
+                    .wrap(
+                        SessionMiddleware::builder(store_builder(), key())
+                            .session_ttl(time::Duration::seconds(100))
+                            .build(),
+                    )
+                    .service(web::resource("/").to(|ses: Session| async move {
+                        ses.insert("counter", Value::from(10));
+                        "test"
+                    }))
+                    .service(web::resource("/test/").to(|ses: Session| async move {
+                        let val: usize = ses.get("counter").unwrap().unwrap();
+                        format!("counter: {val}")
+                    })),
+            )
+            .await;
+
+            let request = test::TestRequest::get().to_request();
+            let response = app.call(request).await.unwrap();
+            let cookie = response.get_cookie("id").expect("Cookie is set");
+            let token = cookie.value();
+
+            let request = test::TestRequest::with_uri("/test/")
+                .insert_header((AUTHORIZATION, format!("Bearer {token}")))
+                .to_request();
+            let body = test::call_and_read_body(&app, request).await;
+            assert_eq!(body, Bytes::from_static(b"counter: 10"));
         }
 
         pub(super) async fn expiration_is_refreshed_on_changes<F, Store>(store_builder: F)

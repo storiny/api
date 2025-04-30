@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::{
         blog_slug_regex::BLOG_SLUG_REGEX,
         reserved_keywords::RESERVED_KEYWORDS,
@@ -14,13 +15,12 @@ use crate::{
         check_resource_limit::check_resource_limit,
         incr_resource_limit::incr_resource_limit,
     },
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{
@@ -161,10 +161,10 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::test_utils::{
+        RedisTestContext,
         exceed_resource_limit,
         get_resource_limit,
         init_app_for_test,
-        RedisTestContext,
     };
     use actix_http::StatusCode;
     use actix_web::test;

@@ -1,7 +1,7 @@
 use crate::{
+    LapinPool,
     amqp::init::SharedQueueState,
     constants::notification_entity_type::NotificationEntityType,
-    LapinPool,
 };
 use anyhow::anyhow;
 use deadpool_lapin::lapin::{
@@ -195,8 +195,8 @@ mod tests {
         get_queue_state_for_test,
     };
     use deadpool_lapin::lapin::{
-        options::BasicPublishOptions,
         BasicProperties,
+        options::BasicPublishOptions,
     };
     use sqlx::{
         PgPool,

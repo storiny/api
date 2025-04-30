@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::account_activity_type::AccountActivityType,
     error::{
         AppError,
@@ -6,24 +7,23 @@ use crate::{
     },
     middlewares::identity::identity::Identity,
     utils::clear_user_sessions::clear_user_sessions,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     http::StatusCode,
     patch,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use argon2::{
-    password_hash::{
-        rand_core::OsRng,
-        SaltString,
-    },
     Argon2,
     PasswordHash,
     PasswordHasher,
     PasswordVerifier,
+    password_hash::{
+        SaltString,
+        rand_core::OsRng,
+    },
 };
 use serde::{
     Deserialize,
@@ -136,11 +136,11 @@ mod tests {
     };
     use actix_web::test;
     use argon2::{
-        password_hash::{
-            rand_core::OsRng,
-            SaltString,
-        },
         PasswordHasher,
+        password_hash::{
+            SaltString,
+            rand_core::OsRng,
+        },
     };
     use sqlx::{
         PgPool,

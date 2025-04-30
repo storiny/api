@@ -24,8 +24,8 @@ use crate::{
 use redis::AsyncCommands;
 use serde::Deserialize;
 use sqlx::{
-    types::Json,
     FromRow,
+    types::Json,
 };
 use time::OffsetDateTime;
 use tonic::{
@@ -351,8 +351,8 @@ mod tests {
         constants::redis_namespaces::RedisNamespace,
         grpc::defs::story_def::v1::GetStoryRequest,
         test_utils::{
-            test_grpc_service,
             RedisTestContext,
+            test_grpc_service,
         },
     };
     use redis::AsyncCommands;

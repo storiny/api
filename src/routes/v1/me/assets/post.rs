@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::{
         buckets::S3_UPLOADS_BUCKET,
         resource_limit::ResourceLimit,
@@ -12,26 +13,25 @@ use crate::{
         check_resource_limit::check_resource_limit,
         incr_resource_limit::incr_resource_limit,
     },
-    AppState,
 };
 use actix_multipart::form::{
+    MultipartForm,
     tempfile::TempFile,
     text::Text,
-    MultipartForm,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use colors_transform::Rgb;
 use dominant_color::get_colors;
 use image::{
-    imageops::FilterType,
     EncodableLayout,
     GenericImageView,
     ImageError,
     ImageFormat,
+    imageops::FilterType,
 };
 use mime::{
     IMAGE_GIF,
@@ -420,20 +420,20 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::{
+        RedisPool,
+        S3Client,
         config::get_app_config,
         oauth::get_oauth_client_map,
         test_utils::{
+            RedisTestContext,
+            TestContext,
             exceed_resource_limit,
             get_lapin_pool,
             get_redis_pool,
             get_resource_limit,
             get_s3_client,
-            RedisTestContext,
-            TestContext,
         },
         utils::delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
-        RedisPool,
-        S3Client,
     };
     use actix_web::{
         App,
@@ -441,12 +441,12 @@ mod tests {
     };
     use futures::future;
     use reqwest::{
+        Body,
+        StatusCode,
         multipart::{
             Form,
             Part,
         },
-        Body,
-        StatusCode,
     };
     use sqlx::PgPool;
     use std::{
@@ -578,7 +578,7 @@ VALUES ($1, $2, $3, $4)
                         .expect("failed to FLUSHDB");
                 },
                 async {
-                    delete_s3_objects_using_prefix(&self.s3_client, S3_UPLOADS_BUCKET, None, None)
+                    delete_s3_objects_using_prefix(&self.s3_client, S3_UPLOADS_BUCKET, None)
                         .await
                         .unwrap()
                 },

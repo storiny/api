@@ -8,6 +8,10 @@ use super::{
 use thiserror::Error;
 use tracing::warn;
 use yrs::{
+    ReadTxn,
+    StateVector,
+    Transact,
+    Update,
     encoding::read,
     updates::{
         decoder::{
@@ -19,10 +23,6 @@ use yrs::{
             Encoder,
         },
     },
-    ReadTxn,
-    StateVector,
-    Transact,
-    Update,
 };
 
 /// The maximum size (in bytes) of the individual incoming awareness update. Awareness updates
@@ -423,6 +423,12 @@ mod test {
     use super::*;
     use std::collections::HashMap;
     use yrs::{
+        Doc,
+        GetString,
+        ReadTxn,
+        StateVector,
+        Text,
+        Transact,
         encoding::read::Cursor,
         updates::{
             decoder::{
@@ -434,12 +440,6 @@ mod test {
                 EncoderV1,
             },
         },
-        Doc,
-        GetString,
-        ReadTxn,
-        StateVector,
-        Text,
-        Transact,
     };
 
     #[test]

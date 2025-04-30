@@ -1,4 +1,6 @@
 use crate::{
+    LapinPool,
+    SesClient,
     amqp::init::SharedQueueState,
     constants::{
         email_template::EmailTemplate,
@@ -16,8 +18,6 @@ use crate::{
         get_cdn_url::get_cdn_url,
         get_read_time::get_read_time,
     },
-    LapinPool,
-    SesClient,
 };
 use anyhow::anyhow;
 use aws_sdk_sesv2::types::{
@@ -50,8 +50,8 @@ use std::{
     sync::Arc,
 };
 use time::{
-    format_description::FormatItem,
     OffsetDateTime,
+    format_description::FormatItem,
 };
 use tracing::{
     debug,
@@ -388,8 +388,8 @@ mod tests {
         },
     };
     use deadpool_lapin::lapin::{
-        options::BasicPublishOptions,
         BasicProperties,
+        options::BasicPublishOptions,
     };
     use sqlx::PgPool;
     use std::{

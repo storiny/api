@@ -1,6 +1,6 @@
 use maxminddb::{
-    geoip2,
     Reader,
+    geoip2,
 };
 use serde::{
     Deserialize,
@@ -8,7 +8,7 @@ use serde::{
 };
 use std::net::IpAddr;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClientLocation {
     pub display_name: String,
     pub lat: Option<f64>,

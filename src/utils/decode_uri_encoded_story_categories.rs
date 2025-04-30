@@ -41,11 +41,13 @@ mod tests {
 
     #[test]
     fn can_decode_uri_encoded_story_categories() {
-        let categories_str = [StoryCategory::Travel.to_string(),
+        let categories_str = [
+            StoryCategory::Travel.to_string(),
             StoryCategory::Entertainment.to_string(),
             StoryCategory::DigitalGraphics.to_string(),
             StoryCategory::Gaming.to_string(),
-            StoryCategory::Lifestyle.to_string()]
+            StoryCategory::Lifestyle.to_string(),
+        ]
         .join("|");
         let uri_encoded = lz_str::compress_to_encoded_uri_component(&categories_str);
         let decoded = decode_uri_encoded_story_categories(&uri_encoded);

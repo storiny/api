@@ -1,4 +1,5 @@
 use crate::{
+    S3Client,
     config,
     config::get_app_config,
     cron::{
@@ -7,7 +8,6 @@ use crate::{
         cleanup_s3::cleanup_s3,
         sitemap::refresh_sitemap,
     },
-    S3Client,
 };
 use apalis::{
     cron::{

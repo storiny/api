@@ -1,14 +1,14 @@
 use std::num::NonZeroU8;
 use time::{
+    OffsetDateTime,
     format_description::well_known::{
+        Iso8601,
         iso8601::{
             Config,
             EncodedConfig,
             TimePrecision,
         },
-        Iso8601,
     },
-    OffsetDateTime,
 };
 
 /// The configuration of ISO 8601.

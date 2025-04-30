@@ -13,8 +13,8 @@ use crate::{
     utils::{
         extract_session_key_from_cookie::extract_session_key_from_cookie,
         get_user_sessions::{
-            get_user_sessions,
             UserSession,
+            get_user_sessions,
         },
         to_iso8601::to_iso8601,
     },
@@ -142,8 +142,8 @@ mod tests {
         },
         grpc::defs::login_activity_def::v1::GetLoginActivityRequest,
         test_utils::{
-            test_grpc_service,
             RedisTestContext,
+            test_grpc_service,
         },
         utils::{
             get_client_device::ClientDevice,
@@ -168,9 +168,9 @@ mod tests {
 
         #[test_context(RedisTestContext)]
         #[sqlx::test]
-        async fn can_return_login_activity(_ctx: &mut RedisTestContext, pool: PgPool) {
+        async fn can_return_login_activity(_ctx: &mut RedisTestContext, _pool: PgPool) {
             test_grpc_service(
-                pool,
+                _pool,
                 true,
                 Box::new(|mut client, _, redis_pool, user_id| async move {
                     let config = get_app_config().unwrap();
@@ -203,6 +203,7 @@ mod tests {
                                 }),
                                 domain: Some("example.com".to_string()),
                                 ack: false,
+                                ext_blog: Some(false),
                             })
                             .unwrap(),
                         )

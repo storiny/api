@@ -38,11 +38,10 @@ pub async fn get_user_id(
     // Session key is in the format `user_id:token`.
     let session_key = extract_session_key_from_cookie(&request.into_inner().token, &secret_key)
         .ok_or(Status::not_found("Invalid token"))?;
-    let cache_key = format!("{}:{}", RedisNamespace::Session, session_key);
+    let cache_key = format!("{}:{session_key}", RedisNamespace::Session);
 
     let mut conn = client.redis_pool.get().await.map_err(|error| {
         error!("unable to acquire a connection from the Redis pool: {error:?}");
-
         Status::internal("Redis error")
     })?;
 
@@ -52,14 +51,12 @@ pub async fn get_user_id(
         .await
         .map_err(|error| {
             error!("unable to fetch the session data: {error:?}");
-
             Status::internal("Redis error")
         })?;
 
     // Missing session.
     if result.is_none() {
         debug!("no session found in the cache");
-
         return Err(Status::not_found("Session not found"));
     }
 
@@ -68,7 +65,6 @@ pub async fn get_user_id(
             // This can happen when we manually insert a key value pair into the session while the
             // user has not logged-in.
             warn!("`user_id` is not present in the session data: {error:?}");
-
             Status::not_found("Valid session not found")
         })?
         .user_id;

@@ -1,17 +1,17 @@
 use crate::{
+    AppState,
     error::{
         AppError,
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
     utils::generate_totp::generate_totp,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpResponse,
 };
 use serde::{
     Deserialize,

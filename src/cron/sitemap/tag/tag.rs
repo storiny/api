@@ -186,7 +186,6 @@ mod tests {
                 &self.s3_client,
                 S3_SITEMAPS_BUCKET,
                 Some("tags-".to_string()),
-                None,
             )
             .await
             .unwrap();

@@ -1,6 +1,12 @@
 use crate::{
+    AppState,
+    RedisPool,
     constants::{
+        blog_domain_regex::BLOG_DOMAIN_REGEX,
+        blog_login_token_data::BlogLoginTokenData,
+        blog_login_token_expiration::BLOG_LOGIN_TOKEN_EXPIRATION,
         notification_entity_type::NotificationEntityType,
+        redis_namespaces::RedisNamespace,
         resource_lock::ResourceLock,
         user_flag::UserFlag,
     },
@@ -16,23 +22,29 @@ use crate::{
             Flag,
             Mask,
         },
+        generate_hashed_token::generate_hashed_token,
         generate_totp::generate_totp,
-        get_client_device::get_client_device,
-        get_client_location::get_client_location,
+        get_client_device::{
+            ClientDevice,
+            get_client_device,
+        },
+        get_client_location::{
+            ClientLocation,
+            get_client_location,
+        },
         get_user_sessions::get_user_sessions,
         incr_resource_lock_attempts::incr_resource_lock_attempts,
         is_resource_locked::is_resource_locked,
         reset_resource_lock::reset_resource_lock,
     },
-    AppState,
 };
 use actix_http::HttpMessage;
 use actix_web::{
+    HttpRequest,
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpRequest,
-    HttpResponse,
 };
 use actix_web_validator::{
     Json,
@@ -47,11 +59,15 @@ use serde::{
     Deserialize,
     Serialize,
 };
-use sqlx::Row;
+use sqlx::{
+    Postgres,
+    Row,
+    Transaction,
+};
 use std::net::IpAddr;
 use storiny_session::{
-    config::SessionLifecycle,
     Session,
+    config::SessionLifecycle,
 };
 use time::OffsetDateTime;
 use totp_rs::Secret;
@@ -73,12 +89,16 @@ struct Request {
     remember_me: bool,
     #[validate(length(min = 6, max = 12, message = "Invalid authentication code"))]
     code: Option<String>,
+    #[validate(regex = "BLOG_DOMAIN_REGEX")]
+    #[validate(length(min = 3, max = 512, message = "Invalid blog domain"))]
+    blog_domain: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Response {
     result: String,
     is_first_login: bool,
+    blog_token: Option<String>,
 }
 
 #[derive(Deserialize, Validate)]
@@ -93,6 +113,7 @@ struct QueryParams {
     fields(
         email = %payload.email,
         remember_me = %payload.remember_me,
+        blog_domain = tracing::field::Empty,
         bypass = query.bypass
     )
 )]
@@ -307,6 +328,7 @@ WHERE code = $1 AND user_id = $2
             return Ok(HttpResponse::Ok().json(Response {
                 result: "suspended".to_string(),
                 is_first_login,
+                blog_token: None,
             }));
         }
     }
@@ -335,6 +357,7 @@ WHERE id = $1
                 return Ok(HttpResponse::Ok().json(Response {
                     result: "held_for_deletion".to_string(),
                     is_first_login,
+                    blog_token: None,
                 }));
             }
         }
@@ -364,6 +387,7 @@ WHERE id = $1
                 return Ok(HttpResponse::Ok().json(Response {
                     result: "deactivated".to_string(),
                     is_first_login,
+                    blog_token: None,
                 }));
             }
         }
@@ -379,52 +403,90 @@ WHERE id = $1
             return Ok(HttpResponse::Ok().json(Response {
                 result: "email_confirmation".to_string(),
                 is_first_login,
+                blog_token: None,
             }));
         }
     }
 
-    let mut client_device_value = "Unknown device".to_string();
-    let mut client_location_value: Option<String> = None;
+    let mut client_device: (String, Option<ClientDevice>) = ("Unknown device".to_string(), None);
+    let mut client_location: (Option<String>, Option<ClientLocation>) = (None, None);
 
-    // Insert additional data to the session.
-    {
-        if let Some(ip) = req.connection_info().realip_remote_addr() {
-            if let Ok(parsed_ip) = ip.parse::<IpAddr>() {
-                if let Some(client_location_result) = get_client_location(parsed_ip, &data.geo_db) {
-                    client_location_value = Some(client_location_result.display_name.to_string());
+    // Extract client details from the request.
 
-                    if let Ok(client_location) = serde_json::to_value(client_location_result) {
-                        session.insert("location", client_location);
-                    }
-                }
+    if let Some(ip) = req.connection_info().realip_remote_addr() {
+        if let Ok(parsed_ip) = ip.parse::<IpAddr>() {
+            if let Some(client_location_result) = get_client_location(parsed_ip, &data.geo_db) {
+                client_location = (
+                    Some(client_location_result.display_name.to_string()),
+                    Some(client_location_result),
+                );
             }
         }
+    }
 
-        if let Some(origin) = req.headers().get(actix_http::header::ORIGIN) {
-            if let Ok(url) = Url::parse(origin.to_str().unwrap_or_default()) {
-                if let Some(domain) = url.domain() {
-                    match domain {
-                        "storiny.com" => {}
-                        "www.storiny.com" => {}
-                        _ => {
-                            if domain.chars().count() < 256 {
-                                if let Ok(domain) = serde_json::to_value(domain) {
-                                    session.insert("domain", domain);
-                                }
+    if let Some(ua_header) = req.headers().get("user-agent") {
+        if let Ok(ua) = ua_header.to_str() {
+            let client_device_result = get_client_device(ua, &data.ua_parser);
+            client_device = (
+                client_device_result.display_name.to_string(),
+                Some(client_device_result),
+            );
+        }
+    }
+
+    // Handle blog login
+    if let Some(domain) = &payload.blog_domain {
+        tracing::Span::current().record("blog_domain", domain);
+
+        if let Some(login_token) = handle_blog_login(
+            domain,
+            user_id,
+            payload.remember_me,
+            client_location.1.clone(),
+            client_device.1.clone(),
+            &data.config.token_salt,
+            &data.redis,
+            &mut txn,
+        )
+        .await?
+        {
+            txn.commit().await?;
+
+            debug!("blog login token generated");
+
+            return Ok(HttpResponse::Ok().json(Response {
+                result: "success".to_string(),
+                is_first_login: false,
+                blog_token: Some(login_token),
+            }));
+        }
+    }
+
+    // Insert additional data to the session.
+    if let Some(ref client_location_result) = client_location.1 {
+        if let Ok(client_location) = serde_json::to_value(client_location_result) {
+            session.insert("location", client_location);
+        }
+    }
+
+    if let Some(ref client_device_result) = client_device.1 {
+        if let Ok(client_device) = serde_json::to_value(client_device_result) {
+            session.insert("device", client_device);
+        }
+    }
+
+    if let Some(origin) = req.headers().get(actix_http::header::ORIGIN) {
+        if let Ok(url) = Url::parse(origin.to_str().unwrap_or_default()) {
+            if let Some(domain) = url.domain() {
+                match domain {
+                    "storiny.com" | "www.storiny.com" => {}
+                    _ => {
+                        if domain.chars().count() < 256 {
+                            if let Ok(domain) = serde_json::to_value(domain) {
+                                session.insert("domain", domain);
                             }
                         }
                     }
-                }
-            }
-        }
-
-        if let Some(ua_header) = req.headers().get("user-agent") {
-            if let Ok(ua) = ua_header.to_str() {
-                let client_device_result = get_client_device(ua, &data.ua_parser);
-                client_device_value = client_device_result.display_name.to_string();
-
-                if let Ok(client_device) = serde_json::to_value(client_device_result) {
-                    session.insert("device", client_device);
                 }
             }
         }
@@ -455,10 +517,10 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
     )
     .bind(NotificationEntityType::LoginAttempt as i16)
     .bind(user_id)
-    .bind(if let Some(location) = client_location_value {
-        format!("{client_device_value}:{location}")
+    .bind(if let Some(location) = client_location.0 {
+        format!("{}:{location}", client_device.0)
     } else {
-        client_device_value
+        client_device.0
     })
     .execute(&mut *txn)
     .await?;
@@ -479,7 +541,7 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
                 match clear_user_sessions(&data.redis, user_id).await {
                     Ok(_) => {
                         debug!(
-                            "cleared {} ovreflowing sessions for the user",
+                            "cleared {} overflowing sessions for the user",
                             sessions.len()
                         );
                     }
@@ -500,7 +562,7 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
         }
     };
 
-    let login_result = Identity::login(&req.extensions(), user.get::<i64, _>("id"));
+    let login_result = Identity::login(&req.extensions(), user_id);
 
     match login_result {
         Ok(_) => {
@@ -511,6 +573,7 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
             Ok(HttpResponse::Ok().json(Response {
                 result: "success".to_string(),
                 is_first_login,
+                blog_token: None,
             }))
         }
         Err(error) => Err(AppError::InternalError(format!(
@@ -520,12 +583,92 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
     }
 }
 
+/// Generates a login token for an external blog.
+///
+/// * `domain` - The blog's domain name.
+/// * `user_id` - The ID of the user trying to log in.
+/// * `persistent` - Whether to use a persistent browser session after login.
+/// * `location` - The optional [ClientLocation] value of the user.
+/// * `device` - The optional [ClientDevice] value for the user.
+/// * `token_salt` - The salt for generating login token.
+/// * `db_txn` - The Postgres transaction.
+async fn handle_blog_login<'a>(
+    domain: &str,
+    user_id: i64,
+    persistent: bool,
+    location: Option<ClientLocation>,
+    device: Option<ClientDevice>,
+    token_salt: &str,
+    redis_pool: &RedisPool,
+    db_txn: &mut Transaction<'a, Postgres>,
+) -> Result<Option<String>, AppError> {
+    let blog_result = sqlx::query(
+        r#"
+SELECT b.id
+FROM blogs b
+WHERE
+    b.domain = $1
+    AND b.deleted_at IS NULL
+"#,
+    )
+    .bind(domain.to_string())
+    .fetch_one(&mut **db_txn)
+    .await;
+
+    match blog_result {
+        Ok(blog) => {
+            let blog_id = blog.get::<i64, _>("id");
+
+            // Generate a new login token.
+            let (token_id, hashed_token) = generate_hashed_token(token_salt)?;
+
+            let mut redis_conn = redis_pool.get().await?;
+            let cache_key = format!("{}:{hashed_token}", RedisNamespace::BlogLogin);
+
+            let serialized_token_data = rmp_serde::to_vec_named(&BlogLoginTokenData {
+                uid: user_id,
+                bid: blog_id,
+                persistent,
+                loc: location,
+                device,
+            })
+            .map_err(|error| {
+                AppError::InternalError(format!(
+                    "unable to serialize the blog login token data: {error:?}"
+                ))
+            })?;
+
+            redis::cmd("SET")
+                .arg(&cache_key)
+                .arg(&serialized_token_data)
+                .arg("EX") // EX: set expiry
+                .arg(BLOG_LOGIN_TOKEN_EXPIRATION)
+                .query_async::<_, ()>(&mut *redis_conn)
+                .await
+                .map_err(|error| {
+                    AppError::InternalError(format!(
+                        "unable to save the blog login token data: {error:?}"
+                    ))
+                })?;
+
+            Ok(Some(token_id))
+        }
+        Err(error) => {
+            if matches!(error, sqlx::Error::RowNotFound) {
+                return Ok(None);
+            }
+
+            Err(AppError::from(error))
+        }
+    }
+}
+
 pub fn init_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(post);
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::{
         constants::{
@@ -533,13 +676,14 @@ mod tests {
             session_cookie::SESSION_COOKIE_NAME,
         },
         test_utils::{
+            RedisTestContext,
             assert_form_error_response,
             assert_response_body_text,
             assert_toast_error_response,
             exceed_resource_lock_attempts,
             get_resource_lock_attempts,
             init_app_for_test,
-            RedisTestContext,
+            res_to_string,
         },
         utils::{
             get_client_device::ClientDevice,
@@ -548,17 +692,17 @@ mod tests {
         },
     };
     use actix_web::{
+        Responder,
         get,
         services,
         test,
-        Responder,
     };
     use argon2::{
-        password_hash::{
-            rand_core::OsRng,
-            SaltString,
-        },
         PasswordHasher,
+        password_hash::{
+            SaltString,
+            rand_core::OsRng,
+        },
     };
     use redis::AsyncCommands;
     use serde_json::json;
@@ -571,9 +715,16 @@ mod tests {
     use storiny_macros::test_context;
     use uuid::Uuid;
 
+    #[derive(Debug, Deserialize)]
+    pub struct GetLoginDetailsResponse {
+        pub device: Option<ClientDevice>,
+        pub location: Option<ClientLocation>,
+        pub domain: Option<String>,
+    }
+
     /// Returns the device and session data present in the session for testing.
     #[get("/get-login-details")]
-    async fn get(session: Session) -> impl Responder {
+    pub async fn get(session: Session) -> impl Responder {
         let location = session.get::<ClientLocation>("location").unwrap();
         let device = session.get::<ClientDevice>("device").unwrap();
         let domain = session.get::<String>("domain").unwrap();
@@ -626,6 +777,7 @@ VALUES ($1, $2, $3, $4, TRUE)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -636,6 +788,7 @@ VALUES ($1, $2, $3, $4, TRUE)
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true, // Should be `true`.
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -724,6 +877,7 @@ VALUES ($1, $2)
                 password: password.to_string(),
                 remember_me: true,
                 code: Some("0".repeat(12)),
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -734,6 +888,7 @@ VALUES ($1, $2)
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -797,6 +952,7 @@ VALUES ($1, $2, $3, $4, TRUE, TRUE, $5)
                 password: password.to_string(),
                 remember_me: true,
                 code: Some(totp.generate_current().unwrap()),
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -807,6 +963,7 @@ VALUES ($1, $2, $3, $4, TRUE, TRUE, $5)
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -843,6 +1000,7 @@ VALUES ($1, $2, $3, $4, TRUE, NOW())
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -853,6 +1011,7 @@ VALUES ($1, $2, $3, $4, TRUE, NOW())
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: false, // Should be false.
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -889,6 +1048,7 @@ VALUES ($1, $2, $3, $4)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -925,6 +1085,7 @@ VALUES ($1, $2, $3)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -968,6 +1129,7 @@ VALUES ($1, $2, $3, $4, $5)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -978,6 +1140,7 @@ VALUES ($1, $2, $3, $4, $5)
             &serde_json::to_string(&Response {
                 result: "suspended".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1019,6 +1182,7 @@ VALUES ($1, $2, $3, $4, $5)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1029,6 +1193,7 @@ VALUES ($1, $2, $3, $4, $5)
             &serde_json::to_string(&Response {
                 result: "suspended".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1079,6 +1244,7 @@ WHERE email = $1
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1089,6 +1255,7 @@ WHERE email = $1
             &serde_json::to_string(&Response {
                 result: "deactivated".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1139,6 +1306,7 @@ WHERE email = $1
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1149,6 +1317,7 @@ WHERE email = $1
             &serde_json::to_string(&Response {
                 result: "held_for_deletion".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1187,6 +1356,7 @@ VALUES ($1, $2, $3, $4)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1197,6 +1367,7 @@ VALUES ($1, $2, $3, $4)
             &serde_json::to_string(&Response {
                 result: "email_confirmation".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap(),
         )
@@ -1234,6 +1405,7 @@ VALUES ($1, $2, $3, TRUE)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1273,6 +1445,7 @@ VALUES ($1, $2, $3, TRUE)
                 password: password.to_string(),
                 remember_me: true,
                 code: Some("0".repeat(7)),
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1315,6 +1488,7 @@ VALUES ($1, $2, $3, $4, TRUE)
                 password: password.to_string(),
                 remember_me: false,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1364,6 +1538,7 @@ VALUES ($1, $2, $3, $4, TRUE)
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1423,6 +1598,7 @@ WHERE email = $1
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1433,6 +1609,7 @@ WHERE email = $1
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -1502,6 +1679,7 @@ WHERE email = $1
                 password: password.to_string(),
                 remember_me: true,
                 code: None,
+                blog_domain: None,
             })
             .to_request();
         let res = test::call_service(&app, req).await;
@@ -1512,6 +1690,7 @@ WHERE email = $1
             &serde_json::to_string(&Response {
                 result: "success".to_string(),
                 is_first_login: true,
+                blog_token: None,
             })
             .unwrap_or_default(),
         )
@@ -1537,8 +1716,100 @@ WHERE email = $1
         Ok(())
     }
 
+    // Blog login
+
+    #[sqlx::test]
+    async fn can_handle_invalid_blog(pool: PgPool) -> sqlx::Result<()> {
+        let mut conn = pool.acquire().await?;
+        let app = init_app_for_test(post, pool, false, false, None).await.0;
+
+        let (email, password_hash, password) = get_sample_email_and_password();
+
+        // Insert the user.
+        sqlx::query(
+            r#"
+INSERT INTO users (name, username, email, password, email_verified)
+VALUES ($1, $2, $3, $4, TRUE)
+"#,
+        )
+        .bind("Sample user".to_string())
+        .bind("sample_user".to_string())
+        .bind(email.to_string())
+        .bind(password_hash)
+        .execute(&mut *conn)
+        .await?;
+
+        let req = test::TestRequest::post()
+            .uri("/v1/auth/login")
+            .set_json(Request {
+                email: email.to_string(),
+                password: password.to_string(),
+                remember_me: true,
+                code: None,
+                blog_domain: Some("test.com".to_string()),
+            })
+            .to_request();
+        let res = test::call_service(&app, req).await;
+
+        // Should fall-back to native (storiny.com) login.
+
+        assert!(res.status().is_success());
+        assert_response_body_text(
+            res,
+            &serde_json::to_string(&Response {
+                result: "success".to_string(),
+                is_first_login: true, // Should be `true`.
+                blog_token: None,
+            })
+            .unwrap_or_default(),
+        )
+        .await;
+
+        // Should also insert a notification.
+        let result = sqlx::query(
+            r#"
+SELECT EXISTS (
+    SELECT
+        1
+    FROM
+        notification_outs
+    WHERE
+        notification_id = (
+            SELECT id FROM notifications
+            WHERE entity_type = $1
+        )
+   )
+"#,
+        )
+        .bind(NotificationEntityType::LoginAttempt as i16)
+        .fetch_one(&mut *conn)
+        .await?;
+
+        assert!(result.get::<bool, _>("exists"));
+
+        // Should also update the `last_login_at` column.
+        let result = sqlx::query(
+            r#"
+SELECT last_login_at FROM users
+WHERE username = $1
+"#,
+        )
+        .bind("sample_user")
+        .fetch_one(&mut *conn)
+        .await?;
+
+        assert!(
+            result
+                .get::<Option<OffsetDateTime>, _>("last_login_at")
+                .is_some()
+        );
+
+        Ok(())
+    }
+
     mod serial {
         use super::*;
+        use crate::config::get_app_config;
 
         #[test_context(RedisTestContext)]
         #[sqlx::test]
@@ -1572,6 +1843,7 @@ VALUES ($1, $2, $3, $4)
                     password: "some_invalid_password".to_string(),
                     remember_me: true,
                     code: None,
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1619,6 +1891,7 @@ VALUES ($1, $2, $3, TRUE)
                     password: password.to_string(),
                     remember_me: true,
                     code: Some("0".repeat(12)),
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1669,6 +1942,7 @@ VALUES ($1, $2, $3, TRUE, $4)
                     password: password.to_string(),
                     remember_me: true,
                     code: Some("0".repeat(6)),
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1731,6 +2005,7 @@ VALUES ($1, $2, NOW())
                     password: password.to_string(),
                     remember_me: true,
                     code: Some("0".repeat(12)),
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1770,6 +2045,7 @@ VALUES ($1, $2, NOW())
                     password: "bad_password".to_string(),
                     remember_me: true,
                     code: Some("0".repeat(12)),
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1822,6 +2098,7 @@ VALUES ($1, $2, $3, $4, TRUE)
                     password: password.to_string(),
                     remember_me: true,
                     code: None,
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1898,6 +2175,7 @@ VALUES ($1, $2, $3, $4, $5, TRUE)
                     password: password.to_string(),
                     remember_me: true,
                     code: None,
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1908,6 +2186,7 @@ VALUES ($1, $2, $3, $4, $5, TRUE)
                 &serde_json::to_string(&Response {
                     result: "success".to_string(),
                     is_first_login: true,
+                    blog_token: None,
                 })
                 .unwrap_or_default(),
             )
@@ -1962,7 +2241,8 @@ VALUES ($1, $2, $3, $4, TRUE)
                     email: email.to_string(),
                     password: password.to_string(),
                     remember_me: true,
-                    code: None
+                    code: None,
+                    blog_domain: None,
                 })
                 .to_request();
             let res = test::call_service(&app, req).await;
@@ -1980,19 +2260,146 @@ VALUES ($1, $2, $3, $4, TRUE)
                 .uri("/get-login-details")
                 .to_request();
             let res = test::call_service(&app, req).await;
-
-            #[derive(Deserialize)]
-            struct ClientSession {
-                device: Option<ClientDevice>,
-                location: Option<ClientLocation>,
-                domain: Option<String>,
-            }
-
-            let client_session = test::read_body_json::<ClientSession, _>(res).await;
+            let client_session = test::read_body_json::<GetLoginDetailsResponse, _>(res).await;
 
             assert!(client_session.device.is_some());
             assert!(client_session.location.is_some());
             assert_eq!(client_session.domain, Some("test.storiny.com".to_string()));
+
+            Ok(())
+        }
+
+        // Blog login
+
+        #[test_context(RedisTestContext)]
+        #[sqlx::test]
+        async fn can_handle_blog_login(
+            ctx: &mut RedisTestContext,
+            pool: PgPool,
+        ) -> sqlx::Result<()> {
+            let redis_pool = &ctx.redis_pool;
+            let config = get_app_config().unwrap();
+            let mut conn = pool.acquire().await?;
+            let mut redis_conn = redis_pool.get().await.unwrap();
+            let app = init_app_for_test(post, pool, false, false, None).await.0;
+            let salt = SaltString::from_b64(&config.token_salt).unwrap();
+
+            let (email, password_hash, password) = get_sample_email_and_password();
+
+            // Insert the user and blog.
+            let blog = sqlx::query(
+                r#"
+WITH inserted_user AS (
+    INSERT INTO users (name, username, email, password, email_verified)
+    VALUES ($1, $2, $3, $4, TRUE)
+    RETURNING id
+)
+INSERT INTO blogs (name, slug, domain, user_id)
+VALUES ('Sample blog', 'sample_blog', 'test.com', (SELECT id FROM inserted_user))
+RETURNING id, user_id
+"#,
+            )
+            .bind("Sample user".to_string())
+            .bind("sample_user".to_string())
+            .bind(email.to_string())
+            .bind(password_hash)
+            .fetch_one(&mut *conn)
+            .await?;
+
+            let blog_id = blog.get::<i64, _>("id");
+            let user_id = blog.get::<i64, _>("user_id");
+
+            // With `remember_me` = false
+
+            let req = test::TestRequest::post()
+                .uri("/v1/auth/login")
+                .set_json(Request {
+                    email: email.to_string(),
+                    password: password.to_string(),
+                    remember_me: false,
+                    code: None,
+                    blog_domain: Some("test.com".to_string()),
+                })
+                .to_request();
+            let res = test::call_service(&app, req).await;
+
+            assert!(res.status().is_success());
+
+            let json = serde_json::from_str::<Response>(&res_to_string(res).await).unwrap();
+
+            assert!(json.blog_token.is_some());
+            assert_eq!(json.result, "success".to_string());
+
+            // Should insert a blog login token.
+            let token = json.blog_token.unwrap();
+            let hashed_token = Argon2::default()
+                .hash_password(token.as_bytes(), &salt)
+                .unwrap();
+            let cache_key = format!("{}:{hashed_token}", RedisNamespace::BlogLogin);
+
+            let result: Option<Vec<u8>> = redis::cmd("GET")
+                .arg(&[&cache_key])
+                .query_async(&mut *redis_conn)
+                .await
+                .expect("unable to get the login token");
+            let serialized_value = result.expect("token not found");
+            let value = rmp_serde::from_slice::<BlogLoginTokenData>(&serialized_value)
+                .expect("unable to parse login token data");
+
+            assert_eq!(value.uid, user_id);
+            assert_eq!(value.bid, blog_id);
+            assert_eq!(value.persistent, false);
+            assert!(value.loc.is_none());
+            assert!(value.device.is_none());
+
+            // With `remember_me` = true, location, and device details.
+
+            let req = test::TestRequest::post()
+                .uri("/v1/auth/login")
+                .peer_addr(SocketAddr::from(SocketAddrV4::new(
+                    Ipv4Addr::new(8, 8, 8, 8),
+                    8080,
+                )))
+                .append_header(("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:40.0) Gecko/20100101 Firefox/40.0"))
+                .append_header(("origin", "https://test.storiny.com"))
+                .set_json(Request {
+                    email: email.to_string(),
+                    password: password.to_string(),
+                    remember_me: true,
+                    code: None,
+                    blog_domain: Some("test.com".to_string()),
+                })
+                .to_request();
+            let res = test::call_service(&app, req).await;
+
+            assert!(res.status().is_success());
+
+            let json = serde_json::from_str::<Response>(&res_to_string(res).await).unwrap();
+
+            assert!(json.blog_token.is_some());
+            assert_eq!(json.result, "success".to_string());
+
+            // `is_persistent_session` should be true.
+            let token = json.blog_token.unwrap();
+            let hashed_token = Argon2::default()
+                .hash_password(token.as_bytes(), &salt)
+                .unwrap();
+            let cache_key = format!("{}:{hashed_token}", RedisNamespace::BlogLogin);
+
+            let result: Option<Vec<u8>> = redis::cmd("GET")
+                .arg(&[&cache_key])
+                .query_async(&mut *redis_conn)
+                .await
+                .expect("unable to get the login token");
+            let serialized_value = result.expect("token not found");
+            let value = rmp_serde::from_slice::<BlogLoginTokenData>(&serialized_value)
+                .expect("unable to parse login token data");
+
+            assert_eq!(value.uid, user_id);
+            assert_eq!(value.bid, blog_id);
+            assert_eq!(value.persistent, true);
+            assert!(value.loc.is_some());
+            assert!(value.device.is_some());
 
             Ok(())
         }

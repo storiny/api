@@ -1,15 +1,15 @@
 use crate::{
+    AppState,
     constants::{
         reserved_keywords::RESERVED_KEYWORDS,
         username_regex::USERNAME_REGEX,
     },
     error::AppError,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use serde::{

@@ -1,24 +1,24 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use serde::{
     Deserialize,
     Serialize,
 };
 use sqlx::{
-    postgres::PgRow,
     FromRow,
     Postgres,
     QueryBuilder,
     Row,
+    postgres::PgRow,
 };
 use uuid::Uuid;
 use validator::Validate;

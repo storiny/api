@@ -1,15 +1,15 @@
 use actix_web::{
+    App,
+    Responder,
     body::MessageBody,
     cookie::{
-        time::Duration,
         Key,
+        time::Duration,
     },
     dev::Service,
     http::StatusCode,
     test,
     web,
-    App,
-    Responder,
 };
 use anyhow::Error;
 use serde_json::{
@@ -18,6 +18,8 @@ use serde_json::{
 };
 use std::convert::TryInto;
 use storiny_session::{
+    Session,
+    SessionMiddleware,
     storage::{
         LoadError,
         SaveError,
@@ -25,8 +27,6 @@ use storiny_session::{
         SessionStore,
         UpdateError,
     },
-    Session,
-    SessionMiddleware,
 };
 
 #[actix_web::test]

@@ -1,8 +1,9 @@
 use crate::{
+    AppState,
     amqp::consumers::notify_story_add::{
+        NOTIFY_STORY_ADD_QUEUE_NAME,
         NotifyStoryAddMessage,
         StoryAddSource,
-        NOTIFY_STORY_ADD_QUEUE_NAME,
     },
     error::{
         AppError,
@@ -15,18 +16,17 @@ use crate::{
         RealmDestroyReason,
     },
     utils::generate_story_slug::generate_story_slug,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     put,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use deadpool_lapin::lapin::{
-    options::BasicPublishOptions,
     BasicProperties,
+    options::BasicPublishOptions,
 };
 use futures::future;
 use lockable::AsyncLimit;
@@ -317,9 +317,9 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::test_utils::{
+        RedisTestContext,
         assert_toast_error_response,
         init_app_for_test,
-        RedisTestContext,
     };
     use actix_web::{
         services,

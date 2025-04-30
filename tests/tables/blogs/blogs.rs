@@ -2,12 +2,12 @@
 mod tests {
     use nanoid::nanoid;
     use sqlx::{
-        pool::PoolConnection,
-        postgres::PgRow,
         Error,
         PgPool,
         Postgres,
         Row,
+        pool::PoolConnection,
+        postgres::PgRow,
     };
     use storiny::constants::{
         sql_states::SqlState,

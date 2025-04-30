@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::resource_lock::ResourceLock,
     error::{
         AppError,
@@ -12,24 +13,23 @@ use crate::{
         is_resource_locked::is_resource_locked,
         reset_resource_lock::reset_resource_lock,
     },
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use argon2::{
-    password_hash::{
-        rand_core::OsRng,
-        SaltString,
-    },
     Argon2,
     PasswordHash,
     PasswordHasher,
     PasswordVerifier,
+    password_hash::{
+        SaltString,
+        rand_core::OsRng,
+    },
 };
 use serde::{
     Deserialize,
@@ -218,18 +218,18 @@ mod tests {
             token::TOKEN_LENGTH,
         },
         test_utils::{
+            RedisTestContext,
             assert_form_error_response,
             assert_toast_error_response,
             exceed_resource_lock_attempts,
             get_resource_lock_attempts,
             init_app_for_test,
-            RedisTestContext,
         },
         utils::{
             generate_hashed_token::generate_hashed_token,
             get_user_sessions::{
-                get_user_sessions,
                 UserSession,
+                get_user_sessions,
             },
         },
     };

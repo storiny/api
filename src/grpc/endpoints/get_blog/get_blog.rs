@@ -12,8 +12,8 @@ use crate::{
 };
 use serde::Deserialize;
 use sqlx::{
-    types::Json,
     FromRow,
+    types::Json,
 };
 use time::OffsetDateTime;
 use tonic::{

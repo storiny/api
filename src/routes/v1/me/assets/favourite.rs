@@ -1,16 +1,16 @@
 use crate::{
+    AppState,
     error::{
         AppError,
         ToastErrorResponse,
     },
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     delete,
     post,
     web,
-    HttpResponse,
 };
 use serde::Deserialize;
 use validator::Validate;

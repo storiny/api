@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::{
         notification_entity_type::NotificationEntityType,
         resource_limit::ResourceLimit,
@@ -13,13 +14,12 @@ use crate::{
         check_resource_limit::check_resource_limit,
         incr_resource_limit::incr_resource_limit,
     },
-    AppState,
 };
 use actix_http::StatusCode;
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -171,11 +171,11 @@ mod tests {
     use crate::{
         grpc::defs::privacy_settings_def::v1::IncomingFriendRequest,
         test_utils::{
+            RedisTestContext,
             assert_toast_error_response,
             exceed_resource_limit,
             get_resource_limit,
             init_app_for_test,
-            RedisTestContext,
         },
     };
     use actix_web::{

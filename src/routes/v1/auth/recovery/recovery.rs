@@ -1,7 +1,8 @@
 use crate::{
+    AppState,
     amqp::consumers::templated_email::{
-        TemplatedEmailMessage,
         TEMPLATED_EMAIL_QUEUE_NAME,
+        TemplatedEmailMessage,
     },
     constants::{
         email_template::EmailTemplate,
@@ -19,13 +20,12 @@ use crate::{
         incr_resource_lock_attempts::incr_resource_lock_attempts,
         is_resource_locked::is_resource_locked,
     },
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     http::StatusCode,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use chrono::{
@@ -33,8 +33,8 @@ use chrono::{
     Local,
 };
 use deadpool_lapin::lapin::{
-    options::BasicPublishOptions,
     BasicProperties,
+    options::BasicPublishOptions,
 };
 use serde::{
     Deserialize,
@@ -176,11 +176,11 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::test_utils::{
+        RedisTestContext,
         assert_form_error_response,
         exceed_resource_lock_attempts,
         get_resource_lock_attempts,
         init_app_for_test,
-        RedisTestContext,
     };
     use actix_web::test;
     use sqlx::PgPool;

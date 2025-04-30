@@ -1,8 +1,8 @@
 use crate::{
-    amqp::init::SharedQueueState,
-    constants::email_source::EMAIL_SOURCE,
     LapinPool,
     SesClient,
+    amqp::init::SharedQueueState,
+    constants::email_source::EMAIL_SOURCE,
 };
 use anyhow::anyhow;
 use aws_sdk_sesv2::types::{
@@ -160,8 +160,8 @@ mod tests {
         },
     };
     use deadpool_lapin::lapin::{
-        options::BasicPublishOptions,
         BasicProperties,
+        options::BasicPublishOptions,
     };
     use sqlx::PgPool;
     use std::{

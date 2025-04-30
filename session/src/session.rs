@@ -1,9 +1,14 @@
 use crate::config::SessionLifecycle;
 use actix_utils::future::{
-    ready,
     Ready,
+    ready,
 };
 use actix_web::{
+    FromRequest,
+    HttpMessage,
+    HttpRequest,
+    HttpResponse,
+    ResponseError,
     body::BoxBody,
     dev::{
         Extensions,
@@ -12,11 +17,6 @@ use actix_web::{
         ServiceResponse,
     },
     error::Error,
-    FromRequest,
-    HttpMessage,
-    HttpRequest,
-    HttpResponse,
-    ResponseError,
 };
 use anyhow::Context;
 use derive_more::{
@@ -173,7 +173,7 @@ impl Session {
         }
     }
 
-    /// Removes session both client and server side.
+    /// Removes session from both client and server side.
     pub fn purge(&self) {
         let mut inner = self.0.borrow_mut();
         inner.status = SessionStatus::Purged;
@@ -223,7 +223,8 @@ impl Session {
         inner.lifecycle = lifecycle;
     }
 
-    /// Returns session lifecycle, session status, and iterator of key-value pairs of changes.
+    /// Returns session lifecycle, session status, and iterator of key-value
+    /// pairs of changes.
     ///
     /// This is a destructive operation - the session state is removed from the request extensions
     /// type-map, leaving behind a new empty map. It should only be used when the session is being

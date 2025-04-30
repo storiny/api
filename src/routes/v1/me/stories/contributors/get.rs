@@ -1,20 +1,20 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     get,
     web,
-    HttpResponse,
 };
 use serde::{
     Deserialize,
     Serialize,
 };
 use sqlx::{
-    types::Json,
     FromRow,
+    types::Json,
 };
 use uuid::Uuid;
 use validator::Validate;

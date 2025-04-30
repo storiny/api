@@ -4,8 +4,8 @@ use serde::{
 };
 use std::{
     collections::{
-        hash_map::Entry,
         HashMap,
+        hash_map::Entry,
     },
     fmt::Formatter,
     mem::MaybeUninit,
@@ -15,6 +15,9 @@ use std::{
 use thiserror::Error;
 use tokio::sync::RwLock;
 use yrs::{
+    Doc,
+    Observer,
+    Subscription,
     block::ClientID,
     encoding::read,
     updates::{
@@ -27,9 +30,6 @@ use yrs::{
             Encoder,
         },
     },
-    Doc,
-    Observer,
-    Subscription,
 };
 
 const NULL_STR: &str = "null";
@@ -433,8 +433,8 @@ impl std::fmt::Debug for Awareness {
 mod test {
     use super::*;
     use std::sync::mpsc::{
-        channel,
         Receiver,
+        channel,
     };
     use yrs::Doc;
 

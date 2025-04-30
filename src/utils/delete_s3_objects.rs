@@ -111,7 +111,6 @@ mod tests {
                 &self.s3_client,
                 S3_BASE_BUCKET,
                 Some("test-".to_string()),
-                None,
             )
             .await
             .unwrap();

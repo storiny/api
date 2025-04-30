@@ -110,10 +110,10 @@ mod tests {
         constants::resource_limit::ResourceLimit,
         grpc::defs::story_def::v1::CreateDraftRequest,
         test_utils::{
+            RedisTestContext,
             exceed_resource_limit,
             get_resource_limit,
             test_grpc_service,
-            RedisTestContext,
         },
     };
     use sqlx::{

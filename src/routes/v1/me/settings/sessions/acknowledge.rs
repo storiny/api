@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::redis_namespaces::RedisNamespace,
     error::{
         AppError,
@@ -6,12 +7,11 @@ use crate::{
     },
     middlewares::identity::identity::Identity,
     utils::get_user_sessions::UserSession,
-    AppState,
 };
 use actix_web::{
+    HttpResponse,
     post,
     web,
-    HttpResponse,
 };
 use actix_web_validator::Json;
 use redis::AsyncCommands;
@@ -42,11 +42,7 @@ async fn post(
     let user_id = user.id()?;
     let mut redis_conn = data.redis.get().await?;
 
-    let cache_key = format!(
-        "{}:{user_id}:{}",
-        RedisNamespace::Session,
-        &payload.id
-    );
+    let cache_key = format!("{}:{user_id}:{}", RedisNamespace::Session, &payload.id);
 
     let result = redis_conn
         .get::<_, Option<Vec<u8>>>(&cache_key)
@@ -92,9 +88,9 @@ mod tests {
     use super::*;
     use crate::{
         test_utils::{
+            RedisTestContext,
             assert_toast_error_response,
             init_app_for_test,
-            RedisTestContext,
         },
         utils::get_user_sessions::get_user_sessions,
     };

@@ -1,17 +1,17 @@
 use crate::{
+    AppState,
     error::AppError,
     middlewares::identity::identity::Identity,
-    AppState,
 };
 use actix_http::header;
 use actix_web::{
+    HttpResponse,
     get,
     http::header::{
         CacheControl,
         CacheDirective,
     },
     web,
-    HttpResponse,
 };
 use serde::{
     Deserialize,

@@ -14,6 +14,12 @@ mod index;
 #[path = "v1/mod.rs"]
 mod v1;
 
+#[cfg(test)]
+pub use v1::auth::login::tests::{
+    GetLoginDetailsResponse,
+    get as get_login_details,
+};
+
 /// Registers common API routes.
 ///
 /// * `cfg` - Web service config

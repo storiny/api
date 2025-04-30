@@ -1,6 +1,6 @@
 use crate::{
-    config::get_app_config,
     LapinPool,
+    config::get_app_config,
 };
 
 /// Initializes and returns a Lapin connection pool for tests

@@ -1,9 +1,9 @@
 use crate::{
+    RedisPool,
     constants::{
         redis_namespaces::RedisNamespace,
         resource_limit::ResourceLimit,
     },
-    RedisPool,
 };
 use anyhow::anyhow;
 

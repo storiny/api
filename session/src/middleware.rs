@@ -1,4 +1,6 @@
 use crate::{
+    Session,
+    SessionStatus,
     config::{
         self,
         Configuration,
@@ -9,16 +11,16 @@ use crate::{
     storage::{
         LoadError,
         SessionKey,
+        SessionKeySource,
         SessionStore,
     },
-    Session,
-    SessionStatus,
 };
 use actix_utils::future::{
-    ready,
     Ready,
+    ready,
 };
 use actix_web::{
+    HttpResponse,
     body::MessageBody,
     cookie::{
         Cookie,
@@ -26,20 +28,23 @@ use actix_web::{
         Key,
     },
     dev::{
-        forward_ready,
         ResponseHead,
         Service,
         ServiceRequest,
         ServiceResponse,
         Transform,
+        forward_ready,
     },
     http::header::{
+        AUTHORIZATION,
         HeaderValue,
         SET_COOKIE,
     },
-    HttpResponse,
 };
-use anyhow::Context;
+use anyhow::{
+    Context,
+    anyhow,
+};
 use serde_json::{
     Map,
     Value,
@@ -51,6 +56,7 @@ use std::{
     pin::Pin,
     rc::Rc,
 };
+use tracing::debug;
 
 /// A middleware for session management.
 ///
@@ -134,7 +140,8 @@ fn e500<E: fmt::Debug + fmt::Display + 'static>(err: E) -> actix_web::Error {
     .into()
 }
 
-static LIFECYCLE_KEY: &str = "lifecycle";
+pub static LIFECYCLE_KEY: &str = "lifecycle";
+pub static EXTERNAL_BLOG_KEY: &str = "ext_blog";
 
 #[doc(hidden)]
 #[non_exhaustive]
@@ -163,9 +170,11 @@ where
         let configuration = Rc::clone(&self.configuration);
 
         Box::pin(async move {
-            let session_key = extract_session_key(&req, &configuration.cookie);
+            let (session_key, key_source) =
+                extract_session_key(&req, &configuration.cookie).unzip();
             let (session_key, session_state) =
                 load_session_state(session_key, storage_backend.as_ref()).await?;
+
             let mut session_lifecycle = SessionLifecycle::PersistentSession;
 
             if let Some(lifecycle) = session_state.get(LIFECYCLE_KEY) {
@@ -176,13 +185,19 @@ where
                 session_lifecycle = SessionLifecycle::from_i32(lifecycle as i32);
             }
 
+            let is_external_blog = if let Some(ext_blog) = session_state.get(EXTERNAL_BLOG_KEY) {
+                ext_blog.as_bool().unwrap_or_default()
+            } else {
+                false
+            };
+
             Session::set_session(&mut req, session_state, session_lifecycle);
 
             let mut res = service.call(req).await?;
             let (lifecycle, status, mut session_state) = Session::get_changes(&mut res);
 
-            // We only insert the lifecycle key into the session if it already exist or is non-empty
-            // to avoid creating sessions on every request.
+            // We only insert the dynamic properties into the session if they already exist or are
+            // non-empty to avoid creating sessions on every request.
             if session_key.is_some() || !session_state.is_empty() {
                 session_state.insert(
                     LIFECYCLE_KEY.to_string(),
@@ -190,23 +205,28 @@ where
                 );
             }
 
+            let can_set_cookie =
+                !is_external_blog && key_source != Some(SessionKeySource::AuthorizationHeader);
+
             match session_key {
                 None => {
                     // We do not create an entry in the session store if there is no state attached
-                    // to a fresh session
+                    // to a fresh session.
                     if !session_state.is_empty() {
                         let session_key = storage_backend
                             .save(session_state, &configuration.session.state_ttl)
                             .await
                             .map_err(e500)?;
 
-                        set_session_cookie(
-                            res.response_mut().head_mut(),
-                            session_key,
-                            &configuration.cookie,
-                            lifecycle,
-                        )
-                        .map_err(e500)?;
+                        if can_set_cookie {
+                            set_session_cookie(
+                                res.response_mut().head_mut(),
+                                session_key,
+                                &configuration.cookie,
+                                lifecycle,
+                            )
+                            .map_err(e500)?;
+                        }
                     }
                 }
 
@@ -222,23 +242,27 @@ where
                                 .await
                                 .map_err(e500)?;
 
-                            set_session_cookie(
-                                res.response_mut().head_mut(),
-                                session_key,
-                                &configuration.cookie,
-                                lifecycle,
-                            )
-                            .map_err(e500)?;
+                            if can_set_cookie {
+                                set_session_cookie(
+                                    res.response_mut().head_mut(),
+                                    session_key,
+                                    &configuration.cookie,
+                                    lifecycle,
+                                )
+                                .map_err(e500)?;
+                            }
                         }
 
                         SessionStatus::Purged => {
                             storage_backend.delete(&session_key).await.map_err(e500)?;
 
-                            delete_session_cookie(
-                                res.response_mut().head_mut(),
-                                &configuration.cookie,
-                            )
-                            .map_err(e500)?;
+                            if can_set_cookie {
+                                delete_session_cookie(
+                                    res.response_mut().head_mut(),
+                                    &configuration.cookie,
+                                )
+                                .map_err(e500)?;
+                            }
                         }
 
                         SessionStatus::Renewed => {
@@ -249,13 +273,15 @@ where
                                 .await
                                 .map_err(e500)?;
 
-                            set_session_cookie(
-                                res.response_mut().head_mut(),
-                                session_key,
-                                &configuration.cookie,
-                                lifecycle,
-                            )
-                            .map_err(e500)?;
+                            if can_set_cookie {
+                                set_session_cookie(
+                                    res.response_mut().head_mut(),
+                                    session_key,
+                                    &configuration.cookie,
+                                    lifecycle,
+                                )
+                                .map_err(e500)?;
+                            }
                         }
 
                         SessionStatus::Unchanged => {}
@@ -268,31 +294,83 @@ where
     }
 }
 
-/// Examines the session cookie attached to the incoming request, if there is one, and tries
-/// to extract the session key.
+/// Extracts session token from an `Authorization` header containing a Bearer token. Used for blogs
+/// hosted on external domains.
 ///
-/// It returns `None` if there is no session cookie or if the session cookie is considered invalid
-/// (e.g., when failing a signature check).
-fn extract_session_key(req: &ServiceRequest, config: &CookieConfiguration) -> Option<SessionKey> {
-    let cookies = req.cookies().ok()?;
-    let session_cookie = cookies
-        .iter()
-        .find(|&cookie| cookie.name() == config.name)?;
+/// Returns `Some(String)` if the header is a valid Bearer token and successfully parsed, `None`
+/// otherwise.
+///
+/// * `header` - The `Authorization` header value expected in the form `Bearer <token>`.
+fn extract_token_from_auth_header(header: &HeaderValue) -> Option<String> {
+    // "Bearer *" length
+    if header.len() < 8 {
+        debug!("header is too short");
+        return None;
+    }
+
+    let mut parts = header.to_str().ok()?.splitn(2, ' ');
+
+    match parts.next() {
+        Some("Bearer") => {}
+        _ => {
+            debug!("no bearer prefix");
+            return None;
+        }
+    }
+
+    let token = parts.next()?.to_string();
+
+    Some(token)
+}
+
+/// Examines the authorization header and session cookie attached to the incoming request, if
+/// present, and attempts to extract the session key. The order of preference is the authorization
+/// header first, followed by the cookie as a fallback if the authorization header is not present.
+///
+/// It returns `None` if no session proof is found or if the session proof is considered invalid
+/// (e.g., due to a failed signature check).
+///
+/// * `req` - The incoming [ServiceRequest] instance.
+/// * `config` - The [CookieConfiguration] instance.
+fn extract_session_key(
+    req: &ServiceRequest,
+    config: &CookieConfiguration,
+) -> Option<(SessionKey, SessionKeySource)> {
+    let (session_cookie, key_source) = if let Some(auth_header) = req.headers().get(AUTHORIZATION) {
+        debug!("using authorization header");
+
+        let token = extract_token_from_auth_header(auth_header)?;
+
+        (
+            Cookie::new(config.name.clone(), token),
+            SessionKeySource::AuthorizationHeader,
+        )
+    } else {
+        debug!("using cookie");
+
+        let cookies = req.cookies().ok()?;
+        let session_cookie = cookies
+            .iter()
+            .find(|&cookie| cookie.name() == config.name)
+            .map(|cookie| cookie.clone())?;
+
+        (session_cookie, SessionKeySource::Cookie)
+    };
 
     let mut jar = CookieJar::new();
-    jar.add_original(session_cookie.clone());
+    jar.add_original(session_cookie);
 
     let verification_result = jar.signed(&config.key).get(&config.name);
 
     if verification_result.is_none() {
         tracing::warn!(
-            "The session cookie attached to the incoming request failed to pass cryptographic \
+            "The session proof attached to the incoming request failed to pass cryptographic \
             checks (signature verification/decryption)."
         );
     }
 
     match verification_result?.value().to_owned().try_into() {
-        Ok(session_key) => Some(session_key),
+        Ok(session_key) => Some((session_key, key_source)),
         Err(err) => {
             tracing::warn!(
                 error.message = %err,
@@ -305,6 +383,10 @@ fn extract_session_key(req: &ServiceRequest, config: &CookieConfiguration) -> Op
     }
 }
 
+/// Loads the session state from session storage using the provided `session_key`.
+///
+/// * `session_key` - The session key for item.
+/// * `storage_backend` - The session storage backend.
 async fn load_session_state<Store: SessionStore>(
     session_key: Option<SessionKey>,
     storage_backend: &Store,
@@ -349,6 +431,14 @@ async fn load_session_state<Store: SessionStore>(
     }
 }
 
+/// Attaches a signed session cookie to the outgoing response based on the provided session key
+/// and cookie configuration.
+///
+/// * `response` - A mutable reference to the response head to which the `Set-Cookie` header will be
+///   added.
+/// * `session_key` - The session key to be stored in the cookie.
+/// * `config` - The [CookieConfiguration] instance.
+/// * `session_lifecycle` - Indicates whether the session should be persistent or session-based.
 fn set_session_cookie(
     response: &mut ResponseHead,
     session_key: SessionKey,
@@ -370,15 +460,18 @@ fn set_session_cookie(
         }
     }
 
-    if let Some(ref domain) = config.domain {
-        cookie.set_domain(domain.clone());
+    if let Some(domain) = config.domain.clone() {
+        cookie.set_domain(domain);
     }
 
     let mut jar = CookieJar::new();
     jar.signed_mut(&config.key).add(cookie);
 
     // Set cookie
-    let cookie = jar.delta().next().unwrap();
+    let cookie = jar
+        .delta()
+        .next()
+        .ok_or(anyhow!("unable to sign the cookie"))?;
     let val = HeaderValue::from_str(&cookie.encoded().to_string())
         .context("Failed to attach a session cookie to the outgoing response")?;
 
@@ -387,6 +480,12 @@ fn set_session_cookie(
     Ok(())
 }
 
+/// Attaches a removal cookie to the outgoing response, effectively instructing the client
+/// to delete the existing session cookie.
+///
+/// * `response` - A mutable reference to the response head to which the removal `Set-Cookie` header
+///   will be added.
+/// * `config` - The [CookieConfiguration] instance.
 fn delete_session_cookie(
     response: &mut ResponseHead,
     config: &CookieConfiguration,
@@ -397,7 +496,7 @@ fn delete_session_cookie(
         .http_only(config.http_only)
         .same_site(config.same_site);
 
-    let mut removal_cookie = if let Some(ref domain) = config.domain {
+    let mut removal_cookie = if let Some(domain) = config.domain.clone() {
         removal_cookie.domain(domain)
     } else {
         removal_cookie

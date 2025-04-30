@@ -1,8 +1,8 @@
 use crate::{
+    S3Client,
     config::get_app_config,
     cron::init::SharedCronJobState,
     test_utils::get_s3_client,
-    S3Client,
 };
 use apalis::prelude::*;
 use sqlx::PgPool;

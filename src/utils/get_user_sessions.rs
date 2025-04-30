@@ -1,10 +1,10 @@
 use crate::{
+    RedisPool,
     constants::redis_namespaces::RedisNamespace,
     utils::{
         get_client_device::ClientDevice,
         get_client_location::ClientLocation,
     },
-    RedisPool,
 };
 use anyhow::anyhow;
 use futures::stream::StreamExt;
@@ -19,11 +19,20 @@ use serde::{
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct UserSession {
+    /// The ID of the user.
     pub user_id: i64,
+    /// Timestamp of the session creation.
     pub created_at: i64,
+    /// The user device.
     pub device: Option<ClientDevice>,
+    /// The user location.
     pub location: Option<ClientLocation>,
+    /// The acknowledged flag.
     pub ack: bool,
+    /// The external blog flag. This is only set when the session belongs to a blog on an external
+    /// domain.
+    pub ext_blog: Option<bool>,
+    /// The domain of the blog that this session belongs to.
     pub domain: Option<String>,
 }
 
@@ -102,6 +111,7 @@ mod tests {
                             user_id,
                             created_at: OffsetDateTime::now_utc().unix_timestamp(),
                             ack: false,
+                            ext_blog: None,
                             device: Some(ClientDevice {
                                 display_name: "Some device".to_string(),
                                 r#type: 0,

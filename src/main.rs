@@ -355,7 +355,11 @@ fn main() -> io::Result<()> {
                             SessionMiddleware::builder(redis_store.clone(), secret_key.clone())
                                 .session_ttl(time::Duration::weeks(1))
                                 .cookie_name(SESSION_COOKIE_NAME.into())
-                                .cookie_same_site(SameSite::None)
+                                .cookie_same_site(if config.is_dev {
+                                    SameSite::None
+                                } else {
+                                    SameSite::Strict
+                                })
                                 .cookie_domain(if config.is_dev {
                                     None
                                 } else {

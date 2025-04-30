@@ -1,9 +1,9 @@
 //! Configuration options to tune the behaviour of [`SessionMiddleware`].
 
 use actix_web::cookie::{
-    time::Duration,
     Key,
     SameSite,
+    time::Duration,
 };
 use serde::{
     Deserialize,
@@ -11,8 +11,8 @@ use serde::{
 };
 
 use crate::{
-    storage::SessionStore,
     SessionMiddleware,
+    storage::SessionStore,
 };
 
 /// Determines what type of session cookie should be used and how its lifecycle should be managed.
@@ -108,8 +108,6 @@ impl<Store: SessionStore> SessionMiddlewareBuilder<Store> {
     ///
     /// Use `None` to leave the attribute unspecified. If unspecified, the attribute defaults
     /// to the same host that set the cookie, excluding subdomains.
-    ///
-    /// By default, the attribute is left unspecified.
     pub fn cookie_domain(mut self, domain: Option<String>) -> Self {
         self.configuration.cookie.domain = domain;
         self
@@ -162,7 +160,7 @@ pub(crate) fn default_configuration(key: Key) -> Configuration {
             secure: true,
             http_only: true,
             name: "id".into(),
-            same_site: SameSite::Lax,
+            same_site: SameSite::Strict,
             path: "/".into(),
             domain: None,
             max_age: None,

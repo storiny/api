@@ -6,12 +6,12 @@ use super::{
     },
 };
 use crate::{
+    S3Client,
     constants::buckets::S3_DOCS_BUCKET,
     utils::deflate_bytes_gzip::{
-        deflate_bytes_gzip,
         CompressionLevel,
+        deflate_bytes_gzip,
     },
-    S3Client,
 };
 use hashbrown::HashMap;
 use lockable::{
@@ -34,9 +34,9 @@ use tokio::{
     },
     task::JoinHandle,
     time::{
+        Duration,
         interval,
         timeout,
-        Duration,
     },
 };
 use tracing::{
@@ -672,8 +672,8 @@ mod tests {
     };
     use crate::{
         test_utils::{
-            get_s3_client,
             TestContext,
+            get_s3_client,
         },
         utils::delete_s3_objects_using_prefix::delete_s3_objects_using_prefix,
     };
@@ -684,12 +684,12 @@ mod tests {
     use sqlx::PgPool;
     use storiny_macros::test_context;
     use yrs::{
+        Doc,
         encoding::read::{
             Cursor,
             Read,
         },
         updates::decoder::DecoderV1,
-        Doc,
     };
 
     /// Initializes and returns a tuple consisting of a realm map and a realm instance.
@@ -735,7 +735,7 @@ mod tests {
         }
 
         async fn teardown(self) {
-            delete_s3_objects_using_prefix(&self.s3_client, S3_DOCS_BUCKET, None, None)
+            delete_s3_objects_using_prefix(&self.s3_client, S3_DOCS_BUCKET, None)
                 .await
                 .unwrap();
         }

@@ -34,5 +34,6 @@ pub mod get_user_mute_count;
 pub mod get_user_relations_info;
 pub mod get_username;
 pub mod validate_story;
+pub mod verify_blog_login;
 pub mod verify_email;
 pub mod verify_newsletter_subscription;

@@ -3,7 +3,6 @@ use crate::{
     utils::delete_s3_objects::delete_s3_objects,
 };
 use anyhow::anyhow;
-use async_recursion::async_recursion;
 
 /// Deletes all the S3 objects in the specified bucket matching the provided prefix. Returns the
 /// number of objects that were successfully deleted.
@@ -11,46 +10,42 @@ use async_recursion::async_recursion;
 /// * `client` - The S3 client instance.
 /// * `bucket_name` - The name of the target bucket containing the objects.
 /// * `prefix` - An optional string prefix to match keys and limit the objects.
-/// * `continuation_token` - (Private) A token used during recursion if there are more than 1000
-///   keys with the provided prefix.
-#[async_recursion]
 pub async fn delete_s3_objects_using_prefix(
     client: &S3Client,
     bucket_name: &str,
     prefix: Option<String>,
-    continuation_token: Option<String>,
 ) -> anyhow::Result<u32> {
-    let mut num_deleted: u32;
+    let mut num_deleted: u32 = 0;
+    let mut continuation_token: Option<String> = None;
 
-    let list_objects_result = client
-        .list_objects_v2()
-        .bucket(bucket_name)
-        .max_keys(1_000_i32)
-        .set_prefix(prefix.clone())
-        .set_continuation_token(continuation_token)
-        .send()
-        .await
-        .map_err(|error| error.into_service_error())
-        .map_err(|error| anyhow!("unable to list objects: {:?}", error))?;
+    loop {
+        let list_objects_result = client
+            .list_objects_v2()
+            .bucket(bucket_name)
+            .max_keys(1_000_i32)
+            .set_prefix(prefix.clone())
+            .set_continuation_token(continuation_token.clone())
+            .send()
+            .await
+            .map_err(|error| error.into_service_error())
+            .map_err(|error| anyhow!("unable to list objects: {:?}", error))?;
 
-    {
-        let object_keys = list_objects_result
-            .contents()
-            .iter()
-            .filter_map(|obj| obj.key.clone())
-            .collect::<Vec<_>>();
+        {
+            let object_keys = list_objects_result
+                .contents()
+                .iter()
+                .filter_map(|obj| obj.key.clone())
+                .collect::<Vec<_>>();
 
-        num_deleted = delete_s3_objects(client, bucket_name, object_keys).await?;
-    }
+            num_deleted += delete_s3_objects(client, bucket_name, object_keys).await?;
+        }
 
-    // Recurse until there are no more keys left
-    if list_objects_result.is_truncated.unwrap_or_default() {
-        let next_continuation_token = list_objects_result.next_continuation_token.clone();
-        drop(list_objects_result);
-
-        num_deleted +=
-            delete_s3_objects_using_prefix(client, bucket_name, prefix, next_continuation_token)
-                .await?;
+        // Repeat until there are no more keys left
+        if list_objects_result.is_truncated.unwrap_or(false) {
+            continuation_token = list_objects_result.next_continuation_token.clone();
+        } else {
+            break;
+        }
     }
 
     Ok(num_deleted)
@@ -86,7 +81,6 @@ mod tests {
                 &self.s3_client,
                 S3_BASE_BUCKET,
                 Some("test-".to_string()),
-                None,
             )
             .await
             .unwrap();
@@ -115,7 +109,6 @@ mod tests {
                 s3_client,
                 S3_BASE_BUCKET,
                 Some("test-fruits/".to_string()),
-                None,
             )
             .await
             .unwrap();
@@ -154,7 +147,6 @@ mod tests {
                 s3_client,
                 S3_BASE_BUCKET,
                 Some("test-integers/".to_string()),
-                None,
             )
             .await
             .unwrap();
@@ -193,7 +185,6 @@ mod tests {
                 s3_client,
                 S3_BASE_BUCKET,
                 Some("test-trees/".to_string()),
-                None,
             )
             .await
             .unwrap();

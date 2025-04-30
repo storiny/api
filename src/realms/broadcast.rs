@@ -3,9 +3,9 @@ use super::{
     connection::handle_message,
     protocol::{
         Error,
-        Message,
         MSG_SYNC,
         MSG_SYNC_UPDATE,
+        Message,
     },
 };
 use futures_util::{
@@ -16,13 +16,13 @@ use std::sync::Arc;
 use tokio::{
     select,
     sync::{
+        Mutex,
         broadcast::{
-            channel,
-            error::SendError,
             Receiver,
             Sender,
+            channel,
+            error::SendError,
         },
-        Mutex,
     },
     task::JoinHandle,
 };
@@ -286,9 +286,9 @@ mod test {
         },
     };
     use futures_util::{
-        ready,
         SinkExt,
         StreamExt,
+        ready,
     };
     use std::{
         collections::HashMap,
@@ -305,14 +305,14 @@ mod test {
     };
     use tokio_util::sync::PollSender;
     use yrs::{
-        updates::{
-            decoder::Decode,
-            encoder::Encode,
-        },
         Doc,
         StateVector,
         Text,
         Transact,
+        updates::{
+            decoder::Decode,
+            encoder::Encode,
+        },
     };
 
     #[derive(Debug)]

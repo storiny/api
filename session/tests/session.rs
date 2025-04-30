@@ -1,6 +1,6 @@
 use actix_web::{
-    test,
     HttpResponse,
+    test,
 };
 use serde_json::Value;
 use storiny_session::{

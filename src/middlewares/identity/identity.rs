@@ -6,22 +6,25 @@ use super::error::{
     SessionExpiryError,
 };
 use actix_utils::future::{
-    ready,
     Ready,
+    ready,
 };
 use actix_web::{
-    cookie::time::OffsetDateTime,
-    dev::{
-        Extensions,
-        Payload,
-    },
     Error,
     FromRequest,
     HttpMessage,
     HttpRequest,
     HttpResponse,
+    cookie::time::OffsetDateTime,
+    dev::{
+        Extensions,
+        Payload,
+    },
 };
-use serde_json::Value;
+use serde_json::{
+    Map,
+    Value,
+};
 use storiny_session::Session;
 
 /// A verified user identity. It can be used as a request extractor.
@@ -84,8 +87,9 @@ impl Identity {
     /// * `id` - ID of the user.
     pub fn login(ext: &Extensions, id: i64) -> Result<Self, LoginError> {
         let inner = IdentityInner::extract(ext);
-        inner.session.insert(ID_KEY, Value::from(id));
         let now = OffsetDateTime::now_utc().unix_timestamp();
+
+        inner.session.insert(ID_KEY, Value::from(id));
         inner
             .session
             .insert(LOGIN_UNIX_TIMESTAMP_KEY, Value::from(now));
@@ -93,6 +97,25 @@ impl Identity {
         inner.session.renew();
 
         Ok(Self(inner))
+    }
+
+    /// Returns a map containing login-related session data for a given user ID.
+    ///
+    /// Returns a [`Map<String, Value>`] with the following keys:
+    /// - `ID_KEY`: the user's ID
+    /// - `LOGIN_UNIX_TIMESTAMP_KEY`: current UTC timestamp (login time)
+    /// - `"ack"`: the boolean acknowledgment flag
+    ///
+    /// * `id` - ID of the user.
+    pub fn get_login_data_map(id: i64) -> Map<String, Value> {
+        let mut map: Map<String, Value> = Map::new();
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+
+        map.insert(ID_KEY.to_string(), Value::from(id));
+        map.insert(LOGIN_UNIX_TIMESTAMP_KEY.to_string(), Value::from(now));
+        map.insert("ack".to_string(), Value::from(false)); // Acknowledged flag
+
+        map
     }
 
     /// Removes the user identity from the current session.

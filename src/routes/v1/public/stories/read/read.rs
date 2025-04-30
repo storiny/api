@@ -1,4 +1,5 @@
 use crate::{
+    AppState,
     constants::{
         reading_session::MAXIMUM_READING_SESSION_DURATION,
         redis_namespaces::RedisNamespace,
@@ -10,13 +11,12 @@ use crate::{
         get_client_country::get_client_country,
         get_client_device::get_client_device,
     },
-    AppState,
 };
 use actix_web::{
-    post,
-    web,
     HttpRequest,
     HttpResponse,
+    post,
+    web,
 };
 use actix_web_validator::QsQuery;
 use redis::AsyncCommands;
@@ -190,9 +190,9 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
 mod tests {
     use super::*;
     use crate::test_utils::{
+        RedisTestContext,
         assert_response_body_text,
         init_app_for_test,
-        RedisTestContext,
     };
     use actix_web::test;
     use sqlx::{

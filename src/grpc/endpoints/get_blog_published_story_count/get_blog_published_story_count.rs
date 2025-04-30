@@ -78,7 +78,6 @@ WHERE
         .await
         .map_err(|error| {
             error!("database error: {error:?}");
-
             Status::internal("Database error")
         })?;
 
