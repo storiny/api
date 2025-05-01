@@ -142,6 +142,7 @@ fn e500<E: fmt::Debug + fmt::Display + 'static>(err: E) -> actix_web::Error {
 
 pub static LIFECYCLE_KEY: &str = "lifecycle";
 pub static EXTERNAL_BLOG_KEY: &str = "ext_blog";
+pub static DOMAIN_KEY: &str = "domain";
 
 #[doc(hidden)]
 #[non_exhaustive]
@@ -175,6 +176,7 @@ where
             let (session_key, session_state) =
                 load_session_state(session_key, storage_backend.as_ref()).await?;
 
+            let blog_domain = session_state.get(DOMAIN_KEY).map(|value| value.to_string());
             let mut session_lifecycle = SessionLifecycle::PersistentSession;
 
             if let Some(lifecycle) = session_state.get(LIFECYCLE_KEY) {
@@ -184,12 +186,6 @@ where
 
                 session_lifecycle = SessionLifecycle::from_i32(lifecycle as i32);
             }
-
-            let is_external_blog = if let Some(ext_blog) = session_state.get(EXTERNAL_BLOG_KEY) {
-                ext_blog.as_bool().unwrap_or_default()
-            } else {
-                false
-            };
 
             Session::set_session(&mut req, session_state, session_lifecycle);
 
@@ -205,8 +201,7 @@ where
                 );
             }
 
-            let can_set_cookie =
-                !is_external_blog && key_source != Some(SessionKeySource::AuthorizationHeader);
+            let can_set_cookie = key_source != Some(SessionKeySource::AuthorizationHeader);
 
             match session_key {
                 None => {
@@ -224,6 +219,7 @@ where
                                 session_key,
                                 &configuration.cookie,
                                 lifecycle,
+                                blog_domain,
                             )
                             .map_err(e500)?;
                         }
@@ -248,6 +244,7 @@ where
                                     session_key,
                                     &configuration.cookie,
                                     lifecycle,
+                                    blog_domain,
                                 )
                                 .map_err(e500)?;
                             }
@@ -260,6 +257,7 @@ where
                                 delete_session_cookie(
                                     res.response_mut().head_mut(),
                                     &configuration.cookie,
+                                    blog_domain,
                                 )
                                 .map_err(e500)?;
                             }
@@ -279,6 +277,7 @@ where
                                     session_key,
                                     &configuration.cookie,
                                     lifecycle,
+                                    blog_domain,
                                 )
                                 .map_err(e500)?;
                             }
@@ -439,11 +438,14 @@ async fn load_session_state<Store: SessionStore>(
 /// * `session_key` - The session key to be stored in the cookie.
 /// * `config` - The [CookieConfiguration] instance.
 /// * `session_lifecycle` - Indicates whether the session should be persistent or session-based.
+/// * `blog_domain` - The optional cookie domain for blogs hosted on external domains (`Set-Cookie`
+///   header is mirrored via API proxy on the web server).
 fn set_session_cookie(
     response: &mut ResponseHead,
     session_key: SessionKey,
     config: &CookieConfiguration,
     session_lifecycle: SessionLifecycle,
+    blog_domain: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let value: String = session_key.into();
     let mut cookie = Cookie::new(config.name.clone(), value);
@@ -460,7 +462,7 @@ fn set_session_cookie(
         }
     }
 
-    if let Some(domain) = config.domain.clone() {
+    if let Some(domain) = blog_domain.or_else(|| config.domain.clone()) {
         cookie.set_domain(domain);
     }
 
@@ -486,9 +488,12 @@ fn set_session_cookie(
 /// * `response` - A mutable reference to the response head to which the removal `Set-Cookie` header
 ///   will be added.
 /// * `config` - The [CookieConfiguration] instance.
+/// * `blog_domain` - The optional cookie domain for blogs hosted on external domains (`Set-Cookie`
+///   header is mirrored via API proxy on the web server).
 fn delete_session_cookie(
     response: &mut ResponseHead,
     config: &CookieConfiguration,
+    blog_domain: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let removal_cookie = Cookie::build(config.name.clone(), "")
         .path(config.path.clone())
@@ -496,7 +501,7 @@ fn delete_session_cookie(
         .http_only(config.http_only)
         .same_site(config.same_site);
 
-    let mut removal_cookie = if let Some(domain) = config.domain.clone() {
+    let mut removal_cookie = if let Some(domain) = blog_domain.or_else(|| config.domain.clone()) {
         removal_cookie.domain(domain)
     } else {
         removal_cookie
