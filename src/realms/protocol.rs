@@ -220,11 +220,10 @@ impl Decode for SyncMessage {
 /// # Core Yjs defines two message types:
 ///
 /// - `SyncStep1`: Includes the state set of the sending client. When received, the client should
-/// reply with YjsSyncStep2.
+///   reply with YjsSyncStep2.
 ///
-/// - `SyncStep2`: Includes all missing structs and the complete delete
-/// set. When received, the client is assured that it received all information from the remote
-/// client.
+/// - `SyncStep2`: Includes all missing structs and the complete delete set. When received, the
+///   client is assured that it received all information from the remote client.
 ///
 /// The client should initiate the connection with SyncStep1. When the server receives SyncStep1, it
 /// should reply with SyncStep2 immediately followed by SyncStep1. The client replies with SyncStep2

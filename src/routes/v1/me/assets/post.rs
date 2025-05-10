@@ -231,7 +231,7 @@ async fn handle_upload(
     // We can safely unwrap `image_mime_type` here.
     #[allow(clippy::unwrap_used)]
     let is_gif = image_mime_type.clone().unwrap() == IMAGE_GIF
-        || file_name.split('.').last().unwrap_or_default() == "gif";
+        || file_name.split('.').next_back().unwrap_or_default() == "gif";
 
     // Scale down to 2k.
     if img_width > 2048 || img_height > 2048 {
@@ -269,7 +269,7 @@ async fn handle_upload(
     tracing::Span::current().record("computed_color", format!("#{hex_color}"));
 
     // We device the output format based on the file extension.
-    let (output_format, output_mime) = match file_name.split('.').last() {
+    let (output_format, output_mime) = match file_name.split('.').next_back() {
         None => (ImageFormat::WebP, "image/webp".to_string()),
         Some(ext) => match ext {
             "jpeg" | "jpg" => (ImageFormat::Jpeg, IMAGE_JPEG.to_string()),

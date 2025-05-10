@@ -77,7 +77,7 @@ WHERE blog_id = $1
     "#,
             )
             .bind("Sample blog".to_string())
-            .bind(&case.to_string())
+            .bind(case.to_string())
             .bind(1_i64)
             .execute(&mut *conn)
             .await?;
@@ -101,7 +101,7 @@ WHERE blog_id = $1
     "#,
             )
             .bind("Sample blog".to_string())
-            .bind(&case.to_string())
+            .bind(case.to_string())
             .bind(1_i64)
             .execute(&mut *conn)
             .await;

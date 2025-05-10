@@ -264,9 +264,8 @@ WHERE
                     .encoded() // Percent-encode cookie
                     .stripped()
                     .to_string()
-                    .splitn(2, '=') // Extract value from the encoded string
-                    .nth(1)
-                    .map(|value| value.to_string())
+                    .split_once('=') // Extract value from the encoded string
+                    .map(|(_, value)| value.to_string())
             })
             .ok_or(Status::internal("unable to sign the cookie"))?
     };
@@ -301,7 +300,7 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
     .bind(NotificationEntityType::LoginAttempt as i16)
     .bind(user_id)
     .bind(if let Some(location) = client_location {
-        format!("{client_device_str}:{}", location.display_name.to_string())
+        format!("{client_device_str}:{}", location.display_name)
     } else {
         client_device_str
     })
@@ -444,7 +443,7 @@ mod tests {
             rmp_serde::to_vec_named(token_data).expect("unable to serialize");
 
         redis::cmd("SET")
-            .arg(&cache_key)
+            .arg(cache_key)
             .arg(&serialized_token_data)
             .arg("EX") // EX: set expiry
             .arg(BLOG_LOGIN_TOKEN_EXPIRATION)
@@ -502,8 +501,8 @@ mod tests {
                     let response = response.unwrap().into_inner();
 
                     assert!(response.cookie_value.is_some());
-                    assert_eq!(response.is_persistent_cookie.unwrap(), true);
-                    assert_eq!(response.is_token_valid, true);
+                    assert!(response.is_persistent_cookie.unwrap());
+                    assert!(response.is_token_valid);
 
                     // Should insert a login session into the cache.
                     let sessions = get_user_sessions(&redis_pool, user_id)
@@ -517,7 +516,7 @@ mod tests {
                     assert_eq!(session_data.user_id, user_id);
                     assert_eq!(session_data.domain.clone().unwrap(), "test.com");
                     assert_eq!(session_data.ext_blog, Some(true));
-                    assert_eq!(session_data.ack, false);
+                    assert!(!session_data.ack);
                     assert!(session_data.device.is_none());
                     assert!(session_data.location.is_none());
 
@@ -604,8 +603,8 @@ WHERE id = $1
                     let response = response.unwrap().into_inner();
 
                     assert!(response.cookie_value.is_some());
-                    assert_eq!(response.is_persistent_cookie.unwrap(), false);
-                    assert_eq!(response.is_token_valid, true);
+                    assert!(!response.is_persistent_cookie.unwrap());
+                    assert!(response.is_token_valid);
 
                     // Should insert a login session into the cache.
                     let sessions = get_user_sessions(&redis_pool, user_id)
@@ -619,7 +618,7 @@ WHERE id = $1
                     assert_eq!(session_data.user_id, user_id);
                     assert_eq!(session_data.domain.clone().unwrap(), "test.com");
                     assert_eq!(session_data.ext_blog, Some(true));
-                    assert_eq!(session_data.ack, false);
+                    assert!(!session_data.ack);
                     assert_eq!(
                         session_data.device.clone().unwrap(),
                         token_data.device.unwrap()
@@ -700,7 +699,7 @@ WHERE id = $1
                     let response = response.unwrap().into_inner();
 
                     assert!(response.cookie_value.is_some());
-                    assert_eq!(response.is_token_valid, true);
+                    assert!(response.is_token_valid);
                 }),
             )
             .await;
@@ -747,7 +746,7 @@ WHERE id = $1
                     let response = response.unwrap().into_inner();
 
                     assert!(response.cookie_value.is_some());
-                    assert_eq!(response.is_token_valid, true);
+                    assert!(response.is_token_valid);
                 }),
             )
             .await;
@@ -799,7 +798,7 @@ WHERE id = $1
 
                     let response = response.unwrap().into_inner();
 
-                    assert_eq!(response.is_token_valid, false);
+                    assert!(!response.is_token_valid);
                 }),
             )
             .await;
@@ -847,7 +846,7 @@ WHERE id = $1
 
                     let response = response.unwrap().into_inner();
 
-                    assert_eq!(response.is_token_valid, false);
+                    assert!(!response.is_token_valid);
                 }),
             )
             .await;
@@ -896,7 +895,7 @@ WHERE id = $1
 
                     let response = response.unwrap().into_inner();
 
-                    assert_eq!(response.is_token_valid, false);
+                    assert!(!response.is_token_valid);
                 }),
             )
             .await;
@@ -998,13 +997,13 @@ WHERE id = $1
                     for _ in 0..10 {
                         let _: () = redis_conn
                             .set(
-                                &format!(
+                                format!(
                                     "{}:{}:{}",
                                     RedisNamespace::Session,
                                     user_id,
                                     Uuid::new_v4()
                                 ),
-                                &rmp_serde::to_vec_named(&UserSession {
+                                rmp_serde::to_vec_named(&UserSession {
                                     user_id,
                                     ..Default::default()
                                 })
@@ -1031,7 +1030,7 @@ WHERE id = $1
 
                     let response = response.unwrap().into_inner();
 
-                    assert_eq!(response.is_token_valid, true);
+                    assert!(response.is_token_valid);
 
                     // Should remove previous sessions.
                     let sessions = get_user_sessions(&redis_pool, user_id).await.unwrap();

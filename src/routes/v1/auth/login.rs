@@ -592,6 +592,7 @@ SELECT $2, (SELECT id FROM inserted_notification), $3
 /// * `device` - The optional [ClientDevice] value for the user.
 /// * `token_salt` - The salt for generating login token.
 /// * `db_txn` - The Postgres transaction.
+#[allow(clippy::too_many_arguments)]
 async fn handle_blog_login<'a>(
     domain: &str,
     user_id: i64,
@@ -2131,13 +2132,13 @@ VALUES ($1, $2, $3, $4, TRUE)
             for _ in 0..9 {
                 let _: () = redis_conn
                     .set(
-                        &format!(
+                        format!(
                             "{}:{}:{}",
                             RedisNamespace::Session,
                             user_id.unwrap(),
                             Uuid::new_v4()
                         ),
-                        &rmp_serde::to_vec_named(&UserSession {
+                        rmp_serde::to_vec_named(&UserSession {
                             user_id: user_id.unwrap(),
                             ..Default::default()
                         })
@@ -2348,7 +2349,7 @@ RETURNING id, user_id
 
             assert_eq!(value.uid, user_id);
             assert_eq!(value.bid, blog_id);
-            assert_eq!(value.persistent, false);
+            assert!(!value.persistent);
             assert!(value.loc.is_none());
             assert!(value.device.is_none());
 
@@ -2397,7 +2398,7 @@ RETURNING id, user_id
 
             assert_eq!(value.uid, user_id);
             assert_eq!(value.bid, blog_id);
-            assert_eq!(value.persistent, true);
+            assert!(value.persistent);
             assert!(value.loc.is_some());
             assert!(value.device.is_some());
 

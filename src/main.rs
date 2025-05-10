@@ -161,7 +161,7 @@ fn main() -> io::Result<()> {
 
                 // Session
                 let secret_key = Key::from(config.session_secret_key.as_bytes());
-                let redis_store = match RedisSessionStore::builder(&redis_connection_string.clone())
+                let redis_store = match RedisSessionStore::builder(redis_connection_string.clone())
                     .cache_keygen(|key| format!("{}:{}", RedisNamespace::Session, key)) // Add prefix to session records
                     .build()
                     .await

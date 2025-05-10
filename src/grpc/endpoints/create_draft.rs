@@ -22,7 +22,7 @@ use tracing::error;
 
 /// Creates a new draft.
 
-#[allow(clippy::blocks_in_conditions)]
+#[allow(clippy::blocks_in_conditions, clippy::empty_line_after_outer_attr)]
 #[tracing::instrument(
     name = "GRPC create_draft",
     skip_all,

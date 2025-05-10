@@ -120,7 +120,7 @@ pub async fn get_login_activity(
         .iter()
         .filter(|&item| !item.1.ack && !is_active_login(&secret_key, &item.0, &token))
         .sorted_by_key(|&item| item.1.created_at)
-        .last(); // Last item with the largest `created_at` value.
+        .next_back(); // Last item with the largest `created_at` value.
 
     Ok(Response::new(GetLoginActivityResponse {
         recent: maybe_recent_login
@@ -188,8 +188,8 @@ mod tests {
 
                     let _: () = conn
                         .set(
-                            &format!("{}:{session_key}", RedisNamespace::Session),
-                            &rmp_serde::to_vec_named(&UserSession {
+                            format!("{}:{session_key}", RedisNamespace::Session),
+                            rmp_serde::to_vec_named(&UserSession {
                                 user_id: user_id.unwrap(),
                                 created_at: OffsetDateTime::now_utc().unix_timestamp(),
                                 device: Some(ClientDevice {

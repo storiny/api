@@ -17,6 +17,7 @@ pub fn generate_session_key(user_id: Option<String>) -> SessionKey {
 
     // These unwraps will never panic because pre-conditions are always verified
     // (i.e. length and character set)
+    #[allow(clippy::unwrap_used)]
     let token: SessionKey = String::from_utf8(value).unwrap().try_into().unwrap();
 
     if let Some(user_id) = user_id {

@@ -153,7 +153,7 @@ impl SessionStore for RedisSessionStore {
                     .arg(&body)
                     .arg("NX") // NX: only set the key if it does not already exist
                     .arg("EX") // EX: set expiry
-                    .arg(&format!("{}", ttl.whole_seconds())),
+                    .arg(format!("{}", ttl.whole_seconds())),
             )
             .await
             .map_err(Into::into)
@@ -180,7 +180,7 @@ impl SessionStore for RedisSessionStore {
                     .arg(&body)
                     .arg("XX") // XX: Only set the key if it already exist.
                     .arg("EX") // EX: Set expiry
-                    .arg(&format!("{}", ttl.whole_seconds())),
+                    .arg(format!("{}", ttl.whole_seconds())),
             )
             .await
             .map_err(Into::into)

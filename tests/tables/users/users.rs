@@ -103,7 +103,7 @@ WHERE user_id = $1 AND type = 1
     "#,
             )
             .bind("Sample user".to_string())
-            .bind(&case.to_string())
+            .bind(case.to_string())
             .bind(email)
             .execute(&mut *conn)
             .await?;
@@ -128,7 +128,7 @@ WHERE user_id = $1 AND type = 1
     "#,
             )
             .bind("Sample user".to_string())
-            .bind(&case.to_string())
+            .bind(case.to_string())
             .bind("sample.user@example.com")
             .execute(&mut *conn)
             .await;

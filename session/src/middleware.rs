@@ -351,7 +351,7 @@ fn extract_session_key(
         let session_cookie = cookies
             .iter()
             .find(|&cookie| cookie.name() == config.name)
-            .map(|cookie| cookie.clone())?;
+            .cloned()?;
 
         (session_cookie, SessionKeySource::Cookie)
     };

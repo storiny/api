@@ -106,13 +106,13 @@ mod tests {
             // Insert a session for the user.
             let _: () = redis_conn
                 .set(
-                    &format!(
+                    format!(
                         "{}:{}:{}",
                         RedisNamespace::Session,
                         user_id.unwrap(),
                         session_token
                     ),
-                    &rmp_serde::to_vec_named(&UserSession {
+                    rmp_serde::to_vec_named(&UserSession {
                         user_id: user_id.unwrap(),
                         ..Default::default()
                     })

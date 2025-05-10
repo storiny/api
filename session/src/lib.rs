@@ -13,6 +13,8 @@
 //! [`RedisActorSessionStore`]: storage::RedisActorSessionStore
 
 #![forbid(unsafe_code)]
+#![allow(clippy::module_inception, clippy::needless_lifetimes)]
+#![deny(clippy::expect_used, clippy::unwrap_used)]
 
 pub mod config;
 mod middleware;

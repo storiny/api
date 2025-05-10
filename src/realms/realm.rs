@@ -232,7 +232,7 @@ impl Realm {
     /// Returns `true` if there is at-least one peer subscribed to this realm.
     pub async fn has_peers(&self) -> bool {
         let peer_map = self.peer_map.read().await;
-        peer_map.len() > 0
+        !peer_map.is_empty()
     }
 
     /// Returns the role of the peer using the user ID if present.
@@ -563,6 +563,7 @@ impl Realm {
     /// the document, and clear all the peers.
     async fn destroy_and_remove_from_map(&self, reason: RealmDestroyReason) {
         // Lock the document entry until the realm is destroyed. This should never throw.
+        #[allow(irrefutable_let_patterns)]
         if let Ok(mut entry) = self
             .realm_map
             .async_lock(self.doc_id, AsyncLimit::no_limit())

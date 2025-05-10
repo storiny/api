@@ -875,8 +875,8 @@ VALUES ($5, $1)
 
             let _: () = conn
                 .set(
-                    &format!("{}:{session_key}", RedisNamespace::Session),
-                    &rmp_serde::to_vec_named(&UserSession {
+                    format!("{}:{session_key}", RedisNamespace::Session),
+                    rmp_serde::to_vec_named(&UserSession {
                         user_id,
                         ..Default::default()
                     })
