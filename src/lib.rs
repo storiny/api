@@ -1,4 +1,4 @@
-#![allow(clippy::module_inception)]
+#![allow(clippy::module_inception, clippy::needless_lifetimes)]
 #![deny(clippy::expect_used, clippy::unwrap_used)]
 //
 #[cfg(target_has_atomic = "ptr")]

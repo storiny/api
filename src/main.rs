@@ -3,6 +3,7 @@ use actix_extensible_rate_limit::{
     RateLimiter,
     backend::SimpleInputFunctionBuilder,
 };
+use actix_files as fs;
 use actix_web::{
     App,
     HttpResponse,
@@ -404,6 +405,13 @@ fn main() -> io::Result<()> {
                         .configure(routes::init::init_common_routes)
                         .configure(routes::init::init_oauth_routes)
                         .configure(routes::init::init_v1_routes)
+                        // This service must be registered at last due to the `mount_path` being
+                        // `/`.
+                        .service(
+                            fs::Files::new("/", "./static")
+                                .use_etag(true)
+                                .use_last_modified(true),
+                        )
                         .default_service(web::route().to(not_found))
                 })
                 .bind((host, port))?

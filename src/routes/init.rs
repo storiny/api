@@ -1,8 +1,4 @@
-use super::{
-    favicon,
-    oauth,
-    robots,
-};
+use super::oauth;
 use actix_web::web;
 
 #[path = "health.rs"]
@@ -26,8 +22,6 @@ pub use v1::auth::login::tests::{
 pub fn init_common_routes(cfg: &mut web::ServiceConfig) {
     index::init_routes(cfg);
     health::init_routes(cfg);
-    favicon::init_routes(cfg);
-    robots::init_routes(cfg);
 }
 
 /// Registers oauth API routes.

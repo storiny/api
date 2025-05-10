@@ -95,6 +95,7 @@ hickory-resolver = { version = "0.24.1", features = ["tokio"] }
 four-cc = "0.4.0"
 base64 = "0.21.7"
 md5 = "0.7.0"
+actix-files = "0.6.6"
 
 [dev-dependencies]
 storiny_macros = { version = "0.1.0", path = "macros" }
