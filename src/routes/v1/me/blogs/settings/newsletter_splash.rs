@@ -33,9 +33,9 @@ struct Response {
     newsletter_splash_hex: Option<String>,
 }
 
-#[patch("/v1/me/blogs/{blog_id}/settings/newsletter_splash")]
+#[patch("/v1/me/blogs/{blog_id}/settings/newsletter-splash")]
 #[tracing::instrument(
-    name = "PATCH /v1/me/blogs/{blog_id}/settings/newsletter_splash",
+    name = "PATCH /v1/me/blogs/{blog_id}/settings/newsletter-splash",
     skip_all,
     fields(
         user = user.id().ok(),
@@ -230,7 +230,7 @@ RETURNING id
         let req = test::TestRequest::patch()
             .cookie(cookie.clone().unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: Some(newsletter_splash_id),
@@ -333,7 +333,7 @@ VALUES ($1, $2)
         let req = test::TestRequest::patch()
             .cookie(cookie.clone().unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: Some(newsletter_splash_id),
@@ -366,7 +366,7 @@ WHERE user_id = $1
         let req = test::TestRequest::patch()
             .cookie(cookie.clone().unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: Some(newsletter_splash_id),
@@ -466,7 +466,7 @@ RETURNING id, newsletter_splash_id, newsletter_splash_hex
         let req = test::TestRequest::patch()
             .cookie(cookie.unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: None,
@@ -532,7 +532,7 @@ RETURNING id
         let req = test::TestRequest::patch()
             .cookie(cookie.clone().unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: Some(Uuid::new_v4()),
@@ -595,7 +595,7 @@ RETURNING id
         let req = test::TestRequest::patch()
             .cookie(cookie.clone().unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: Some(newsletter_splash_id),
@@ -614,7 +614,7 @@ RETURNING id
         let req = test::TestRequest::patch()
             .cookie(cookie.clone().unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: None,
@@ -691,7 +691,7 @@ RETURNING id
         let req = test::TestRequest::patch()
             .cookie(cookie.clone().unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: Some(newsletter_splash_id),
@@ -710,7 +710,7 @@ RETURNING id
         let req = test::TestRequest::patch()
             .cookie(cookie.clone().unwrap())
             .uri(&format!(
-                "/v1/me/blogs/{blog_id}/settings/newsletter_splash"
+                "/v1/me/blogs/{blog_id}/settings/newsletter-splash"
             ))
             .set_json(Request {
                 newsletter_splash_id: None,
